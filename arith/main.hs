@@ -12,8 +12,8 @@ isNumericVal term = case term of
 
 eval1 :: Term -> Maybe Term
 eval1 term = case term of 
-    TmIf TmTrue  t2 t3 -> Just t2
-    TmIf TmFalse t2 t3 -> Just t3
+    TmIf TmTrue  t2 _t3 -> Just t2
+    TmIf TmFalse _t2 t3 -> Just t3
     TmIf t1 t2 t3 -> do
         t1' <- eval1 t1
         return ( TmIf t1' t2 t3 )
@@ -41,8 +41,10 @@ eval t = case eval1 t of
     Just t' -> eval t'
     Nothing -> t
 
-repl print ts = mapM_ ( print . eval . read ) ts
+repl :: Monad m => (Term -> m b) -> [String] -> m ()
+repl puts ts = mapM_ ( puts . eval . read ) ts
 
+test :: IO ()
 test = repl ( putStrLn . show ) [
             "TmTrue",
             "TmIf TmFalse TmTrue TmFalse",
@@ -51,3 +53,5 @@ test = repl ( putStrLn . show ) [
             "TmIsZero (TmPred (TmSucc (TmSucc TmZero)))",
             "TmIsZero TmFalse" ]
 
+main :: IO ()
+main = test
