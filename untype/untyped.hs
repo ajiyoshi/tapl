@@ -1,5 +1,5 @@
 module Untyped (
-Term
+Term(..)
 , termShift
 , termSubst
 , termSubstTop
@@ -8,17 +8,15 @@ Term
 , eval
 ) where
 
-data Term = TmVar Integer Integer | Lambda Term | TmApp Term Term deriving ( Show, Read )
-
---type Context = [(String, String)] 
+data Term = TmVar String Integer Integer | Lambda Term | TmApp Term Term deriving ( Show, Read )
 
 termShift :: Integer -> Term -> Term
 termShift d term =
   let
     walk c t = case t of
-      TmVar x n
-        | x >= c -> TmVar (x+d) (n+d)
-        | otherwise -> TmVar x (n+d)
+      TmVar name x n
+        | x >= c -> TmVar name (x+d) (n+d)
+        | otherwise -> TmVar name x (n+d)
       Lambda t1 -> Lambda $ walk (c+1) t1
       TmApp t1 t2 -> TmApp (walk c t1) (walk c t2)
   in walk 0 term
@@ -27,9 +25,9 @@ termSubst :: Integer -> Term -> Term -> Term
 termSubst j s term =
   let
     walk c t = case t of
-      TmVar x n
+      TmVar name x n
         | x == j + c -> termShift c s
-        | otherwise -> TmVar x n
+        | otherwise -> TmVar name x n
       Lambda t1 -> Lambda (walk (c+1) t1)
       TmApp t1 t2 -> TmApp (walk c t1) (walk c t2)
   in walk 0 term
