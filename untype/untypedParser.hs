@@ -2,7 +2,9 @@ module UntypeParser (
 term
 , Context
 , parseStr
+, showTerm
 , evalStr
+, replTerm
 ) where
 
 import Untyped
@@ -18,6 +20,30 @@ evalStr str = do
   t <- parseStr str
   return $ eval t
 
+replTerm :: String -> Maybe String
+replTerm s = do
+  t <- parseStr s
+  return $ (showTerm . eval) t
+ 
+showTerm :: Term -> String
+showTerm = termToString []
+
+termToString :: Context -> Term -> String
+termToString ctx t = case t of
+  Lambda name t1 ->
+    let (ctx', x') = pickfreshname ctx name
+    in "(^" ++ x' ++ ". " ++ termToString ctx' t1 ++ ")"
+  TmApp t1 t2 ->
+    "(" ++ termToString ctx t1 ++ " " ++ termToString ctx t2 ++ ")"
+  TmVar x n 
+    | length ctx == fromIntegral n -> ctx !! fromIntegral x
+    | otherwise -> "[bad index]"
+
+pickfreshname :: Context -> String -> (Context, String)
+pickfreshname ctx name = case elemIndex name ctx of
+  Just _ -> pickfreshname ctx $ name ++ "'"
+  Nothing -> ( name:ctx, name )
+  
 parseStr :: String -> Maybe Term
 parseStr str = case parse (term []) "error" str of
   Left _ -> Nothing
