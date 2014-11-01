@@ -1,5 +1,8 @@
 module UntypeParser (
 term
+, Context
+, parseStr
+, evalStr
 ) where
 
 import Untyped
@@ -9,6 +12,16 @@ import Text.Parsec
 import Text.Parsec.String
 
 type Context = [String] 
+
+evalStr :: String -> Maybe Term
+evalStr str = do
+  t <- parseStr str
+  return $ eval t
+
+parseStr :: String -> Maybe Term
+parseStr str = case parse (term []) "error" str of
+  Left _ -> Nothing
+  Right t -> Just t
 
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx
@@ -28,7 +41,7 @@ identifier :: Context -> Parser Term
 identifier ctx = do
   name <- many1 letter
   case name2index ctx name of
-    Just index -> return $ TmVar name index (fromIntegral $ length ctx)
+    Just index -> return $ TmVar index (fromIntegral $ length ctx)
     Nothing -> parserFail $ "unknown variable [" ++ name ++ "]"
 
 lambda :: Context -> Parser Term
@@ -40,7 +53,7 @@ lambda ctx = do
   char '.'
   spaces
   t <- term (name:ctx)
-  return $ Lambda t
+  return $ Lambda name t
 
 name2index :: Context -> String -> Maybe Integer
 name2index ctx name = do
