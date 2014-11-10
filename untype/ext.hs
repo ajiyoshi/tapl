@@ -5,11 +5,11 @@ ExtTerm(..)
 , extEval
 , extParse
 , extRepl
-, extRepl2
 , realbool
 , realnat
 ) where
 
+import Control.Applicative
 import Untyped
 import UntypedParser
 import Lambda
@@ -88,34 +88,25 @@ extFromTerm t0 = case t0 of
 extEvalTerm :: Term -> ExtTerm
 extEvalTerm = extEval . extFromTerm . bindBuildIn
 
-parseStrAnd :: (Term -> a) -> String -> Maybe a
-parseStrAnd f str = do
-  t <- parseStrIn buildInContext str
-  return $ f t
+parseTerm :: String -> Maybe Term
+parseTerm = parseStrIn buildInContext
 
-extRepl :: String -> Maybe String
-extRepl = parseStrAnd $ showExtTerm . extEvalTerm
-
-extRepl2 :: String -> IO ()
-extRepl2 s = case extParse s of
-  Just t1 -> putStrLn $ showExtTerm t1
-  Nothing -> putStrLn s
+extRepl :: String -> IO ()
+extRepl s = putStrLn $ case extParse s of
+  Just t1 -> showExtTerm t1
+  Nothing -> "FAIL : " ++ s
 
 extParse :: String -> Maybe ExtTerm
-extParse = parseStrAnd extEvalTerm
-
-realbool :: String -> Maybe ExtTerm
-realbool s = do
-  t <- extParse s
-  return $ extEval $ Apply (Apply t (B True)) (B False)
-
-realnat :: String -> Maybe ExtTerm
-realnat s = do
-  t <- extParse s
-  return $ extEval $ Apply (Apply t Succ) (N 0)
+extParse s = extEvalTerm <$> parseTerm s
 
 showExtTerm :: ExtTerm -> String
 showExtTerm = extTermToString []
+
+realbool :: ExtTerm -> ExtTerm
+realbool t = extEval $ Apply (Apply t (B True)) (B False)
+
+realnat :: ExtTerm -> ExtTerm
+realnat t = extEval $ Apply (Apply t Succ) (N 0)
 
 pad :: Context -> String
 pad c = replicate (length c) ' '
