@@ -3,6 +3,7 @@ compiledBuildIn
 , buildInContext
 , bindBuildIn
 , evalTerm
+, parseTerm
 , replStr
 ) where
 
@@ -11,7 +12,8 @@ import UntypedParser
 
 buildIn :: [(String, String)]
 buildIn = [
-   ("tru", "^t. ^f. t")
+  ("id", "^x. x")
+  ,("tru", "^t. ^f. t")
   ,("fls", "^t. ^f. f")
   ,("test", "^l. ^m. ^n. l m n")
   ,("and", "^b. ^c. b c fls")
@@ -20,13 +22,16 @@ buildIn = [
   ,("snd", "^p. p fls")
   ,("zero", "^s. ^z. z")
   ,("one", "^s. ^z. s z")
+  ,("two", "^s. ^z. s (s z)")
+  ,("three", "^s. ^z. s (s (s z))")
+  ,("four", "^s. ^z. s (s (s (s z)))")
   ,("scc", "^n. ^s. ^z. s (n s z)")
   ,("plus", "^m. ^n. ^s. ^z. m s (n s z)")
   ,("times", "^m. ^n. m (plus n) zero")
-  ,("ss", "^p. pair (snd p) (plus one (snd p))")
-  ,("zz", "pair zero zero")
-  ,("prd", "^m. fst (m ss zz)")
+  ,("prd", "^m. fst (m (^p. pair (snd p) (plus one (snd p))) (pair zero zero))")
   ,("iszro", "^m. m (^x. fls) tru")
+  ,("subtract", "^m. ^n. n prd m")
+  ,("equal", "^m. ^n. (and (iszro (n prd m)) (iszro (m prd n)))")
   ,("fix", "^f. (^x. f (^y. x x y)) (^x. f (^y. x x y))")
   ,("fact", "^f. ^n. test (iszro n) (^x. one) (^x. (times n (f (prd n)))) zero")
   ]
@@ -49,8 +54,11 @@ bindBuildIn x = foldl (\t p -> (TmApp (TmAbs (fst p) t) (snd p))) x compiledBuil
 evalTerm :: Term -> Term
 evalTerm = eval . bindBuildIn
 
-replStr :: String -> Maybe String
-replStr s = do 
-  t <- parseStrIn buildInContext s
-  return $ showTerm $ evalTerm t
+parseTerm :: String -> Maybe Term
+parseTerm = parseStrIn buildInContext
+
+replStr :: String -> IO ()
+replStr s0 = putStrLn $ case parseTerm s0 of
+  Just t1 -> showTerm $ evalTerm t1
+  Nothing -> "FAILED : " ++ s0
 

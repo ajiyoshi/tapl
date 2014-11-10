@@ -3,7 +3,6 @@ ExtTerm(..)
 , extTermSubstTop
 , extFromTerm
 , extEval
-, extParse
 , extRepl
 , realbool
 , realnat
@@ -85,19 +84,13 @@ extFromTerm t0 = case t0 of
   TmAbs name t1 -> Lambda name $ extFromTerm t1
   TmApp t1 t2 -> Apply (extFromTerm t1) (extFromTerm t2)
 
-extEvalTerm :: Term -> ExtTerm
-extEvalTerm = extEval . extFromTerm . bindBuildIn
-
-parseTerm :: String -> Maybe Term
-parseTerm = parseStrIn buildInContext
-
 extRepl :: String -> IO ()
-extRepl s = putStrLn $ case extParse s of
+extRepl s = putStrLn $ case runExtTerm s of
   Just t1 -> showExtTerm t1
-  Nothing -> "FAIL : " ++ s
+  Nothing -> "FAILED : " ++ s
 
-extParse :: String -> Maybe ExtTerm
-extParse s = extEvalTerm <$> parseTerm s
+runExtTerm :: String -> Maybe ExtTerm
+runExtTerm s = extEval . extFromTerm . bindBuildIn <$> parseTerm s
 
 showExtTerm :: ExtTerm -> String
 showExtTerm = extTermToString []
@@ -115,7 +108,7 @@ extTermToString :: Context -> ExtTerm -> String
 extTermToString ctx t = case t of
   Lambda name t1 ->
     let (ctx', x') = pickfreshname ctx name
-    in '\n' : pad ctx ++ "(^ [" ++ x' ++ "] " ++ extTermToString ctx' t1 ++ ")"
+    in '\n' : pad ctx ++ "(^ " ++ x' ++ ". " ++ extTermToString ctx' t1 ++ ")"
   Apply t1 t2 ->
     "(" ++ extTermToString ctx t1 ++ " " ++ extTermToString ctx t2 ++ ")"
   Var x n 
