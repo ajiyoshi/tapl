@@ -8,7 +8,7 @@ Term(..)
 , eval
 ) where
 
-data Term = TmVar Integer Integer | Lambda String Term | TmApp Term Term deriving ( Show, Read )
+data Term = TmVar Integer Integer | TmAbs String Term | TmApp Term Term deriving ( Show, Read )
 
 termShift :: Integer -> Term -> Term
 termShift d term =
@@ -17,7 +17,7 @@ termShift d term =
       TmVar x n
         | x >= c -> TmVar (x+d) (n+d)
         | otherwise -> TmVar x (n+d)
-      Lambda name t1 -> Lambda name (walk (c+1) t1)
+      TmAbs name t1 -> TmAbs name (walk (c+1) t1)
       TmApp t1 t2 -> TmApp (walk c t1) (walk c t2)
   in walk 0 term
     
@@ -28,7 +28,7 @@ termSubst j s term =
       TmVar x n
         | x == j + c -> termShift c s
         | otherwise -> TmVar x n
-      Lambda name t1 -> Lambda name (walk (c+1) t1)
+      TmAbs name t1 -> TmAbs name (walk (c+1) t1)
       TmApp t1 t2 -> TmApp (walk c t1) (walk c t2)
   in walk 0 term
 
@@ -38,12 +38,13 @@ termSubstTop s t =
 
 isval :: Term -> Bool
 isval term = case term of
-    Lambda _ _ -> True
+    TmAbs _ _ -> True
     _ -> False 
 
 eval1 :: Term -> Maybe Term
 eval1 term = case term of
-  TmApp (Lambda _ t12) v2 | isval v2 -> Just ( termSubstTop v2 t12 )
+  TmApp (TmAbs _ t12) v2 | isval v2 ->
+    Just ( termSubstTop v2 t12 )
   TmApp v1 t2 | isval v1 -> do
     t2' <- eval1 t2
     return ( TmApp v1 t2' )

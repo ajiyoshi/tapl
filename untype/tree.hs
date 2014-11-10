@@ -4,7 +4,7 @@ import Text.Parsec.String (Parser)
 
 data Tree = Leaf Integer | Branch Tree Tree deriving (Eq, Show)
 
-data Term = TmVar String Integer Integer | Lambda Term | TmApp Term Term deriving ( Show, Read )
+data Term = TmVar String Integer Integer | TmAbs Term | TmApp Term Term deriving ( Show, Read )
 type Identifier = String
 type Context = [Identifier]
 
@@ -68,7 +68,7 @@ lambda ctx = do
   char '.'
   spaces
   t <- term $ name : ctx
-  return $ Lambda t
+  return $ TmAbs t
 
 identifier ::Context -> Parser Term
 identifier ctx = do

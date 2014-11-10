@@ -1,10 +1,11 @@
-module UntypeParser (
+module UntypedParser (
 term
 , Context
-, parseStr
 , showTerm
 , evalStr
 , replTerm
+, pickfreshname
+, parseStrIn
 ) where
 
 import Untyped
@@ -15,24 +16,25 @@ import Text.Parsec.String
 
 type Context = [String] 
 
+parseStrAnd :: (Term -> a) -> String -> Maybe a
+parseStrAnd f str = do
+  t <- parseStrIn [] str
+  return $ f t
+
 evalStr :: String -> Maybe Term
-evalStr str = do
-  t <- parseStr str
-  return $ eval t
+evalStr = parseStrAnd eval
 
 replTerm :: String -> Maybe String
-replTerm s = do
-  t <- parseStr s
-  return $ (showTerm . eval) t
+replTerm = parseStrAnd $ showTerm . eval
  
 showTerm :: Term -> String
 showTerm = termToString []
 
 termToString :: Context -> Term -> String
 termToString ctx t = case t of
-  Lambda name t1 ->
+  TmAbs name t1 ->
     let (ctx', x') = pickfreshname ctx name
-    in "(^" ++ x' ++ ". " ++ termToString ctx' t1 ++ ")"
+    in "(^ [" ++ x' ++ "] " ++ termToString ctx' t1 ++ ")"
   TmApp t1 t2 ->
     "(" ++ termToString ctx t1 ++ " " ++ termToString ctx t2 ++ ")"
   TmVar x n 
@@ -41,11 +43,11 @@ termToString ctx t = case t of
 
 pickfreshname :: Context -> String -> (Context, String)
 pickfreshname ctx name = case elemIndex name ctx of
-  Just _ -> pickfreshname ctx $ name ++ "'"
+  Just _ -> pickfreshname ctx $ name ++ "_"
   Nothing -> ( name:ctx, name )
   
-parseStr :: String -> Maybe Term
-parseStr str = case parse (term []) "error" str of
+parseStrIn :: Context -> String -> Maybe Term
+parseStrIn names str = case parse (term names) "error" str of
   Left _ -> Nothing
   Right t -> Just t
 
@@ -79,7 +81,7 @@ lambda ctx = do
   char '.'
   spaces
   t <- term (name:ctx)
-  return $ Lambda name t
+  return $ TmAbs name t
 
 name2index :: Context -> String -> Maybe Integer
 name2index ctx name = do
