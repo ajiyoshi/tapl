@@ -1,14 +1,4 @@
-module Ext (
-ExtTerm(..)
-, extTermSubstTop
-, extFromTerm
-, extEval
-, extRepl
-, realbool
-, realnat
-, calcExt
-, showExtTerm
-) where
+module Ext where
 
 import Control.Applicative
 import Untyped
@@ -74,10 +64,10 @@ extEval1 t0 = case t0 of
     return ( Apply t1' t2 )
   _ -> Nothing
 
-extEval :: ExtTerm -> ExtTerm
-extEval t0 =
+evalExt :: ExtTerm -> ExtTerm
+evalExt t0 =
   case extEval1 t0 of
-    Just t1 -> extEval t1
+    Just t1 -> evalExt t1
     Nothing -> t0 
 
 extFromTerm :: Term -> ExtTerm
@@ -86,20 +76,41 @@ extFromTerm t0 = case t0 of
   TmAbs name t1 -> Lambda name $ extFromTerm t1
   TmApp t1 t2 -> Apply (extFromTerm t1) (extFromTerm t2)
 
-extRepl :: String -> IO ()
-extRepl s = putsMaybe $ showExtTerm <$> calcExt s
-
+-- |
+-- >>> calcExt "one"
+-- Just (Lambda "s" (Lambda "z" (Apply (Var 1 2) (Var 0 2))))
 calcExt :: String -> Maybe ExtTerm
-calcExt s = extEval . extFromTerm . bindBuildIn <$> readLambda s
+calcExt s = extFromTerm <$> calcLambda s
+
+repExt :: String -> IO ()
+repExt s = putsMaybe $ showExtTerm <$> calcExt s
+
+-- |
+-- >>> realbool <$> calcExt "tru"
+-- Just (B True)
+--
+-- >>> realbool <$> calcExt "fls"
+-- Just (B False)
+--
+-- >>> realbool <$> calcExt "equal one one"
+-- Just (B True)
+-- 
+-- >>> realbool <$> calcExt "equal one two"
+-- Just (B False)
+realbool :: ExtTerm -> ExtTerm
+realbool t = evalExt $ Apply (Apply t (B True)) (B False)
+
+-- |
+-- >>> realnat <$> calcExt "one"
+-- Just (N 1)
+--
+-- >>> realnat <$> calcExt "fix fact three"
+-- Just (N 6)
+realnat :: ExtTerm -> ExtTerm
+realnat t = evalExt $ Apply (Apply t Succ) (N 0)
 
 showExtTerm :: ExtTerm -> String
 showExtTerm = extTermToString []
-
-realbool :: ExtTerm -> ExtTerm
-realbool t = extEval $ Apply (Apply t (B True)) (B False)
-
-realnat :: ExtTerm -> ExtTerm
-realnat t = extEval $ Apply (Apply t Succ) (N 0)
 
 pad :: Context -> String
 pad c = replicate (length c) ' '

@@ -6,8 +6,8 @@ repl puts = mapM_ ( puts . eval . read )
 test :: IO ()
 test = repl ( print . show ) [
             "TmVar 0 0"
-            , "TmAbs (TmVar 0 0)"
-            , "TmApp (TmAbs (TmVar 0 0)) (TmAbs (TmApp (TmVar 0 0) (TmVar 0 0)))"
+            , "TmAbs \"x\" (TmVar 0 0)"
+            , "TmApp (TmAbs \"x\" (TmVar 0 0)) (TmAbs \"y\" (TmApp (TmVar 0 0) (TmVar 0 0)))"
             ]
 
 main :: IO ()

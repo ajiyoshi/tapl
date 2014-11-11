@@ -1,12 +1,4 @@
-module Untyped (
-Term(..)
-, termShift
-, termSubst
-, termSubstTop
-, isval
-, eval1
-, eval
-) where
+module Untyped  where
 
 data Term = TmVar Integer Integer | TmAbs String Term | TmApp Term Term deriving ( Show, Read, Eq )
 

@@ -1,12 +1,4 @@
-module Lambda (
-compiledBuildIn
-, buildInContext
-, bindBuildIn
-, evalLambda
-, readLambda
-, replStr
-, putsMaybe
-) where
+module Lambda where
 
 import Control.Applicative
 import Untyped
@@ -61,9 +53,12 @@ evalLambda = eval . bindBuildIn
 readLambda :: String -> Maybe Term
 readLambda = parseStrIn buildInContext
 
+calcLambda :: String -> Maybe Term
+calcLambda s = evalLambda <$> readLambda s
+
+repLambda :: String -> IO ()
+repLambda s0 = putsMaybe $ showTerm <$> calcLambda s0
+
 putsMaybe :: Maybe String -> IO()
 putsMaybe (Just s) = putStrLn s
 putsMaybe Nothing = return ()
-
-replStr :: String -> IO ()
-replStr s0 = putsMaybe $ showTerm <$> evalLambda <$> readLambda s0

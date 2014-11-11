@@ -1,12 +1,4 @@
-module UntypedParser (
-term
-, Context
-, showTerm
-, evalStr
-, readEvalPP
-, pickfreshname
-, parseStrIn
-) where
+module UntypedParser where
 
 import Untyped
 import Data.List
@@ -83,22 +75,22 @@ parseStrIn ns str = case parse (term ns) "error" str of
   Right t -> Just t
 
 -- |
--- >>> evalStr "^x.x"
+-- >>> calc "^x.x"
 -- Just (TmAbs "x" (TmVar 0 1))
 --
--- >>> evalStr "^x.y"
+-- >>> calc "^x.y"
 -- Nothing
-evalStr :: String -> Maybe Term
-evalStr s = eval <$> parseStrIn [] s
+calc :: String -> Maybe Term
+calc s = eval <$> parseStrIn [] s
 
 -- |
--- >>> readEvalPP "^x.x"
+-- >>> ppCalc "^x.x"
 -- Just "(^ x. x)"
 --
--- >>> readEvalPP "^x.y"
+-- >>> ppCalc "^x.y"
 -- Nothing
-readEvalPP :: String -> Maybe String
-readEvalPP s = showTerm <$> evalStr s
+ppCalc :: String -> Maybe String
+ppCalc s = showTerm <$> calc s
  
 showTerm :: Term -> String
 showTerm = termToString []
