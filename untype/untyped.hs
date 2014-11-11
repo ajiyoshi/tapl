@@ -8,7 +8,7 @@ Term(..)
 , eval
 ) where
 
-data Term = TmVar Integer Integer | TmAbs String Term | TmApp Term Term deriving ( Show, Read )
+data Term = TmVar Integer Integer | TmAbs String Term | TmApp Term Term deriving ( Show, Read, Eq )
 
 termShift :: Integer -> Term -> Term
 termShift d term =

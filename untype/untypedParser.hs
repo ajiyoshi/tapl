@@ -16,25 +16,11 @@ import Text.Parsec.String
 
 type Context = [String] 
 
-parseStrAnd :: (Term -> a) -> String -> Maybe a
-parseStrAnd f str = do
-  t <- parseStrIn [] str
-  return $ f t
-
-evalStr :: String -> Maybe Term
-evalStr = parseStrAnd eval
-
-replTerm :: String -> Maybe String
-replTerm = parseStrAnd $ showTerm . eval
- 
-showTerm :: Term -> String
-showTerm = termToString []
-
 termToString :: Context -> Term -> String
 termToString ctx t = case t of
   TmAbs name t1 ->
     let (ctx', x') = pickfreshname ctx name
-    in "(^ [" ++ x' ++ "] " ++ termToString ctx' t1 ++ ")"
+    in "(^ " ++ x' ++ ". " ++ termToString ctx' t1 ++ ")"
   TmApp t1 t2 ->
     "(" ++ termToString ctx t1 ++ " " ++ termToString ctx t2 ++ ")"
   TmVar x n 
@@ -95,3 +81,24 @@ chain :: Parser (a -> a -> a) -> Parser a -> a -> Parser a
 chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
   where
     lefty f r = l `f` r
+
+-- |
+-- >>> evalStr "^x.x"
+-- Just (TmAbs "x" (TmVar 0 1))
+--
+-- >>> evalStr "^x.y"
+-- Nothing
+evalStr :: String -> Maybe Term
+evalStr s = eval <$> parseStrIn [] s
+
+-- |
+-- >>> replTerm "^x.x"
+-- Just "(^ x. x)"
+--
+-- >>> replTerm "^x.y"
+-- Nothing
+replTerm :: String -> Maybe String
+replTerm s = showTerm <$> evalStr s
+ 
+showTerm :: Term -> String
+showTerm = termToString []

@@ -6,6 +6,8 @@ ExtTerm(..)
 , extRepl
 , realbool
 , realnat
+, runExtTerm
+, showExtTerm
 ) where
 
 import Control.Applicative
