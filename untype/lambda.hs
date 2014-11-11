@@ -2,11 +2,13 @@ module Lambda (
 compiledBuildIn
 , buildInContext
 , bindBuildIn
-, evalTerm
-, parseTerm
+, evalLambda
+, readLambda
 , replStr
+, putsMaybe
 ) where
 
+import Control.Applicative
 import Untyped
 import UntypedParser
 
@@ -49,16 +51,19 @@ buildInContext :: [String]
 buildInContext = [ fst x | x <- compiledBuildIn ]
 
 bindBuildIn :: Term -> Term
-bindBuildIn x = foldl (\t p -> (TmApp (TmAbs (fst p) t) (snd p))) x compiledBuildIn
+bindBuildIn x = foldl bind x compiledBuildIn where
+  bind :: Term -> (String, Term) -> Term
+  bind t p = TmApp (TmAbs (fst p) t) (snd p)
 
-evalTerm :: Term -> Term
-evalTerm = eval . bindBuildIn
+evalLambda :: Term -> Term
+evalLambda = eval . bindBuildIn
 
-parseTerm :: String -> Maybe Term
-parseTerm = parseStrIn buildInContext
+readLambda :: String -> Maybe Term
+readLambda = parseStrIn buildInContext
+
+putsMaybe :: Maybe String -> IO()
+putsMaybe (Just s) = putStrLn s
+putsMaybe Nothing = return ()
 
 replStr :: String -> IO ()
-replStr s0 = putStrLn $ case parseTerm s0 of
-  Just t1 -> showTerm $ evalTerm t1
-  Nothing -> "FAILED : " ++ s0
-
+replStr s0 = putsMaybe $ showTerm <$> evalLambda <$> readLambda s0

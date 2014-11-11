@@ -6,7 +6,7 @@ ExtTerm(..)
 , extRepl
 , realbool
 , realnat
-, runExtTerm
+, calcExt
 , showExtTerm
 ) where
 
@@ -87,12 +87,10 @@ extFromTerm t0 = case t0 of
   TmApp t1 t2 -> Apply (extFromTerm t1) (extFromTerm t2)
 
 extRepl :: String -> IO ()
-extRepl s = putStrLn $ case runExtTerm s of
-  Just t1 -> showExtTerm t1
-  Nothing -> "FAILED : " ++ s
+extRepl s = putsMaybe $ showExtTerm <$> calcExt s
 
-runExtTerm :: String -> Maybe ExtTerm
-runExtTerm s = extEval . extFromTerm . bindBuildIn <$> parseTerm s
+calcExt :: String -> Maybe ExtTerm
+calcExt s = extEval . extFromTerm . bindBuildIn <$> readLambda s
 
 showExtTerm :: ExtTerm -> String
 showExtTerm = extTermToString []

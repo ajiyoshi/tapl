@@ -3,7 +3,7 @@ term
 , Context
 , showTerm
 , evalStr
-, replTerm
+, readEvalPP
 , pickfreshname
 , parseStrIn
 ) where
@@ -92,13 +92,13 @@ evalStr :: String -> Maybe Term
 evalStr s = eval <$> parseStrIn [] s
 
 -- |
--- >>> replTerm "^x.x"
+-- >>> readEvalPP "^x.x"
 -- Just "(^ x. x)"
 --
--- >>> replTerm "^x.y"
+-- >>> readEvalPP "^x.y"
 -- Nothing
-replTerm :: String -> Maybe String
-replTerm s = showTerm <$> evalStr s
+readEvalPP :: String -> Maybe String
+readEvalPP s = showTerm <$> evalStr s
  
 showTerm :: Term -> String
 showTerm = termToString []
