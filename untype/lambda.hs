@@ -1,4 +1,12 @@
-module Lambda where
+module Lambda (
+buildIn
+, buildInContext
+, readLambda
+, evalLambda
+, calcLambda
+, repLambda
+, putsMaybe
+) where
 
 import Control.Applicative
 import Untyped
@@ -53,12 +61,19 @@ evalLambda = eval . bindBuildIn
 readLambda :: String -> Maybe Term
 readLambda = parseStrIn buildInContext
 
+-- |
+-- >>> calcLambda "test tru one two"
+-- Just (TmAbs "s" (TmAbs "z" (TmApp (TmVar 1 2) (TmVar 0 2))))
 calcLambda :: String -> Maybe Term
 calcLambda s = evalLambda <$> readLambda s
 
+-- |
+-- >>> repLambda "test tru one two"
+-- (^ s. (^ z. (s z)))
+--
+-- [残念ながらλ抽象の中の簡約基は簡約されない]
+-- >>> repLambda "scc one"
+-- (^ s. (^ z. (s (((^ s0. (^ z0. (s0 z0))) s) z))))
 repLambda :: String -> IO ()
 repLambda s0 = putsMaybe $ showTerm <$> calcLambda s0
 
-putsMaybe :: Maybe String -> IO()
-putsMaybe (Just s) = putStrLn s
-putsMaybe Nothing = return ()

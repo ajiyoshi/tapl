@@ -1,4 +1,15 @@
-module UntypedParser where
+module UntypedParser (
+Context
+, term
+, pickfreshname
+, showTerm
+, readTerm
+, calcTerm
+, repTerm
+
+, putsMaybe
+, parseStrIn
+) where
 
 import Untyped
 import Data.List
@@ -74,23 +85,46 @@ parseStrIn ns str = case parse (term ns) "error" str of
   Left _ -> Nothing
   Right t -> Just t
 
--- |
--- >>> calc "^x.x"
--- Just (TmAbs "x" (TmVar 0 1))
---
--- >>> calc "^x.y"
--- Nothing
-calc :: String -> Maybe Term
-calc s = eval <$> parseStrIn [] s
+readTerm :: String -> Maybe Term
+readTerm s = parseStrIn [] s
 
 -- |
--- >>> ppCalc "^x.x"
--- Just "(^ x. x)"
+-- >>> calcTerm "^x.x"
+-- Just (TmAbs "x" (TmVar 0 1))
 --
--- >>> ppCalc "^x.y"
+-- >>> calcTerm "^x.y"
 -- Nothing
-ppCalc :: String -> Maybe String
-ppCalc s = showTerm <$> calc s
+calcTerm :: String -> Maybe Term
+calcTerm s = eval <$> readTerm s
+
+-- |
+-- >>> repTerm "^x.x"
+-- (^ x. x)
+--
+-- >>> repTerm "^x.y"
+-- ERROR
+--
+-- [左結合]
+-- >>> repTerm "^x. x x x"
+-- (^ x. ((x x) x))
+--
+-- [カッコ]
+-- >>> repTerm "^x. x (x x)"
+-- (^ x. (x (x x)))
+--
+-- [簡約]
+-- >>> repTerm "(^x. x (x x))(^y. y)"
+-- (^ y. y)
+--
+-- [簡約]
+-- >>> repTerm "(^y. y)(^x. x (x x))"
+-- (^ x. (x (x x)))
+repTerm :: String -> IO ()
+repTerm s = putsMaybe $ showTerm <$> calcTerm s
  
 showTerm :: Term -> String
 showTerm = termToString []
+
+putsMaybe :: Maybe String -> IO()
+putsMaybe (Just s) = putStrLn s
+putsMaybe Nothing = putStrLn "ERROR"

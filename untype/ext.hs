@@ -1,4 +1,12 @@
-module Ext where
+module Ext (
+ExtTerm(..)
+, evalExt
+, calcExt
+, repExt
+, realnat
+, realbool
+, showExtTerm
+) where
 
 import Control.Applicative
 import Untyped
@@ -8,8 +16,8 @@ import Lambda
 data ExtTerm = Var Integer Integer | Lambda String ExtTerm | Apply ExtTerm ExtTerm
   | B Bool | N Integer | Succ deriving (Show)
 
-extTermShift :: Integer -> ExtTerm -> ExtTerm
-extTermShift d tm =
+termShiftExt :: Integer -> ExtTerm -> ExtTerm
+termShiftExt d tm =
   let
     walk c t = case t of
       Var x n
@@ -22,12 +30,12 @@ extTermShift d tm =
       Succ -> Succ
   in walk 0 tm
     
-extTermSubst :: Integer -> ExtTerm -> ExtTerm -> ExtTerm
-extTermSubst j s tm =
+termSubstExt :: Integer -> ExtTerm -> ExtTerm -> ExtTerm
+termSubstExt j s tm =
   let
     walk c t = case t of
       Var x n
-        | x == j + c -> extTermShift c s
+        | x == j + c -> termShiftExt c s
         | otherwise -> Var x n
       Lambda name t1 -> Lambda name (walk (c+1) t1)
       Apply t1 t2 -> Apply (walk c t1) (walk c t2)
@@ -36,37 +44,37 @@ extTermSubst j s tm =
       Succ -> Succ
   in walk 0 tm
 
-extTermSubstTop :: ExtTerm -> ExtTerm -> ExtTerm
-extTermSubstTop s t =
-  extTermShift (-1) (extTermSubst 0 (extTermShift 1 s) t)
+termSubstTopExt :: ExtTerm -> ExtTerm -> ExtTerm
+termSubstTopExt s t =
+  termShiftExt (-1) (termSubstExt 0 (termShiftExt 1 s) t)
 
-extIsval :: ExtTerm -> Bool
-extIsval t0 = case t0 of
+isvalExt :: ExtTerm -> Bool
+isvalExt t0 = case t0 of
     Lambda _ _ -> True
     B _ -> True
     N _ -> True
     Succ -> True
     _ -> False 
 
-extEval1 :: ExtTerm -> Maybe ExtTerm
-extEval1 t0 = case t0 of
+eval1Ext :: ExtTerm -> Maybe ExtTerm
+eval1Ext t0 = case t0 of
   Apply Succ (N n) -> Just $ N (n+1)
   Apply Succ t2 -> do
-    t2' <- extEval1 t2
+    t2' <- eval1Ext t2
     return ( Apply Succ t2' )
-  Apply (Lambda _ t12) v2 | extIsval v2 ->
-    Just ( extTermSubstTop v2 t12 )
-  Apply v1 t2 | extIsval v1 -> do
-    t2' <- extEval1 t2
+  Apply (Lambda _ t12) v2 | isvalExt v2 ->
+    Just ( termSubstTopExt v2 t12 )
+  Apply v1 t2 | isvalExt v1 -> do
+    t2' <- eval1Ext t2
     return ( Apply v1 t2' )
   Apply t1 t2 -> do
-    t1' <- extEval1 t1
+    t1' <- eval1Ext t1
     return ( Apply t1' t2 )
   _ -> Nothing
 
 evalExt :: ExtTerm -> ExtTerm
 evalExt t0 =
-  case extEval1 t0 of
+  case eval1Ext t0 of
     Just t1 -> evalExt t1
     Nothing -> t0 
 
