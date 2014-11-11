@@ -105,6 +105,43 @@ repExt s = putsMaybe $ showExtTerm <$> calcExt s
 -- 
 -- >>> realbool <$> calcExt "equal one two"
 -- Just (B False)
+--
+-- >>> realbool <$> calcExt "and tru fls"
+-- Just (B False)
+-- >>> realbool <$> calcExt "and fls fls"
+-- Just (B False)
+-- >>> realbool <$> calcExt "and tru fls"
+-- Just (B False)
+-- >>> realbool <$> calcExt "and tru tru"
+-- Just (B True)
+--
+-- >>> realbool <$> calcExt "or tru fls"
+-- Just (B True)
+-- >>> realbool <$> calcExt "or fls fls"
+-- Just (B False)
+-- >>> realbool <$> calcExt "or tru fls"
+-- Just (B True)
+-- >>> realbool <$> calcExt "or tru tru"
+-- Just (B True)
+--
+-- >>> realbool <$> calcExt "not tru"
+-- Just (B False)
+-- >>> realbool <$> calcExt "not fls"
+-- Just (B True)
+--
+-- >>> realbool <$> calcExt "equal three (prd (times (scc one) two))"
+-- Just (B True)
+-- >>> realbool <$> calcExt "equal four (prd (times (scc one) two))"
+-- Just (B False)
+--
+-- >>> realbool <$> calcExt "iszro zero"
+-- Just (B True)
+-- >>> realbool <$> calcExt "iszro one"
+-- Just (B False)
+-- >>> realbool <$> calcExt "iszro (subtract four (times (scc one) two))"
+-- Just (B True)
+-- >>> realbool <$> calcExt "iszro (subtract four (prd (times (scc one) two)))"
+-- Just (B False)
 realbool :: ExtTerm -> ExtTerm
 realbool t = evalExt $ Apply (Apply t (B True)) (B False)
 
@@ -114,6 +151,18 @@ realbool t = evalExt $ Apply (Apply t (B True)) (B False)
 --
 -- >>> realnat <$> calcExt "fix fact three"
 -- Just (N 6)
+--
+-- >>> realnat <$> calcExt "fix fact three"
+-- Just (N 6)
+--
+-- >>> realnat <$> calcExt "subtract four three"
+-- Just (N 1)
+--
+-- >>> realnat <$> calcExt "prd (times (scc one) two)"
+-- Just (N 3)
+--
+-- >>> realnat <$> calcExt "subtract four (times (scc one) two)"
+-- Just (N 0)
 realnat :: ExtTerm -> ExtTerm
 realnat t = evalExt $ Apply (Apply t Succ) (N 0)
 

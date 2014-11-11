@@ -19,6 +19,8 @@ buildIn = [
   ,("fls", "^t. ^f. f")
   ,("test", "^l. ^m. ^n. l m n")
   ,("and", "^b. ^c. b c fls")
+  ,("or", "^b. ^c. b tru c")
+  ,("not", "^b. b fls tru")
   ,("pair", "^f. ^s. ^b. b f s")
   ,("fst", "^p. p tru")
   ,("snd", "^p. p fls")
@@ -38,14 +40,13 @@ buildIn = [
   ,("fact", "^f. ^n. test (iszro n) (^x. one) (^x. (times n (f (prd n)))) zero")
   ]
 
-compile :: [(String, String)] -> [(String, Term)] -> [(String, Term)]
-compile [] acc = acc
-compile (p:ps) acc = case parseStrIn [fst x | x <- acc] (snd p) of
-  Just t -> compile ps ( (fst p, t) : acc)
-  Nothing -> compile ps acc
-
 compiledBuildIn :: [(String, Term)]
-compiledBuildIn = compile buildIn []
+compiledBuildIn = compile buildIn [] where
+  compile :: [(String, String)] -> [(String, Term)] -> [(String, Term)]
+  compile [] acc = acc
+  compile (p:ps) acc = case parseStrIn [fst x | x <- acc] (snd p) of
+    Just t -> compile ps ( (fst p, t) : acc)
+    Nothing -> compile ps acc
 
 buildInContext :: [String]
 buildInContext = [ fst x | x <- compiledBuildIn ]
@@ -71,9 +72,33 @@ calcLambda s = evalLambda <$> readLambda s
 -- >>> repLambda "test tru one two"
 -- (^ s. (^ z. (s z)))
 --
+-- >>> repLambda "and tru fls"
+-- (^ t. (^ f. f))
+-- >>> repLambda "and fls fls"
+-- (^ t. (^ f. f))
+-- >>> repLambda "and tru fls"
+-- (^ t. (^ f. f))
+-- >>> repLambda "and tru tru"
+-- (^ t. (^ f. t))
+--
+-- >>> repLambda "or tru fls"
+-- (^ t. (^ f. t))
+-- >>> repLambda "or fls fls"
+-- (^ t. (^ f. f))
+-- >>> repLambda "or tru fls"
+-- (^ t. (^ f. t))
+-- >>> repLambda "or tru tru"
+-- (^ t. (^ f. t))
+--
+-- >>> repLambda "not tru"
+-- (^ t. (^ f. f))
+-- >>> repLambda "not fls"
+-- (^ t. (^ f. t))
+--
 -- [残念ながらλ抽象の中の簡約基は簡約されない]
 -- >>> repLambda "scc one"
 -- (^ s. (^ z. (s (((^ s0. (^ z0. (s0 z0))) s) z))))
+--
 repLambda :: String -> IO ()
 repLambda s0 = putsMaybe $ showTerm <$> calcLambda s0
 
