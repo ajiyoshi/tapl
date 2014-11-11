@@ -28,15 +28,12 @@ termToString ctx t = case t of
     | otherwise -> "[bad index]"
 
 pickfreshname :: Context -> String -> (Context, String)
-pickfreshname ctx name = case elemIndex name ctx of
-  Just _ -> pickfreshname ctx $ name ++ "_"
-  Nothing -> ( name:ctx, name )
+pickfreshname ctx name = choose names where
+  choose (n:ns) = case elemIndex n ctx of
+    Just _ -> choose ns
+    Nothing -> ( n:ctx, n )
+  names = name : [ name ++ (show::Integer->String) i | i <- [0..] ]
   
-parseStrIn :: Context -> String -> Maybe Term
-parseStrIn names str = case parse (term names) "error" str of
-  Left _ -> Nothing
-  Right t -> Just t
-
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx
 
@@ -70,9 +67,7 @@ lambda ctx = do
   return $ TmAbs name t
 
 name2index :: Context -> String -> Maybe Integer
-name2index ctx name = do
-  n <- elemIndex name ctx
-  return $ fromIntegral n
+name2index ctx name = fromIntegral <$> elemIndex name ctx
 
 chainL :: Parser a -> Parser (a -> a -> a) -> Parser a
 chainL p op = p >>= op `chain` p
@@ -81,6 +76,11 @@ chain :: Parser (a -> a -> a) -> Parser a -> a -> Parser a
 chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
   where
     lefty f r = l `f` r
+
+parseStrIn :: Context -> String -> Maybe Term
+parseStrIn ns str = case parse (term ns) "error" str of
+  Left _ -> Nothing
+  Right t -> Just t
 
 -- |
 -- >>> evalStr "^x.x"
