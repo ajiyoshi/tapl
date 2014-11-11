@@ -86,7 +86,7 @@ parseStrIn ns str = case parse (term ns) "error" str of
   Right t -> Just t
 
 readTerm :: String -> Maybe Term
-readTerm s = parseStrIn [] s
+readTerm = parseStrIn []
 
 -- |
 -- >>> calcTerm "^x.x"

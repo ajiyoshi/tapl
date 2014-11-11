@@ -1,6 +1,7 @@
 module Ext (
 ExtTerm(..)
 , evalExt
+, evalNExt
 , calcExt
 , repExt
 , realnat
@@ -71,6 +72,13 @@ eval1Ext t0 = case t0 of
     t1' <- eval1Ext t1
     return ( Apply t1' t2 )
   _ -> Nothing
+
+evalNExt :: Integer -> ExtTerm -> ExtTerm
+evalNExt 0 t = t
+evalNExt n t = case eval1Ext t of
+  Just t1 -> evalNExt (n-1) t1
+  Nothing -> t
+  
 
 evalExt :: ExtTerm -> ExtTerm
 evalExt t0 =
@@ -185,4 +193,5 @@ extTermToString ctx t = case t of
   B True -> " #t "
   B False -> " #f "
   N n -> show n
+  Succ -> "Succ"
 
