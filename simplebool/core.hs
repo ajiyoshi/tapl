@@ -1,20 +1,23 @@
-module Simplebool.Core where
+module Core where
 
 data Type = TyArr Type Type | TyBool deriving (Show, Read, Eq)
 
-data Binding = NameBind | VarBind Type deriving (Show, Read)
+data Binding = NameBind | VarBind Type deriving (Show, Read, Eq)
 
 data Term = TmVar Integer Integer
   | TmAbs String Type Term
   | TmApp Term Term
   | TmTrue
   | TmFalse
-  | TmIf Term Term Term deriving (Show, Read)
+  | TmIf Term Term Term deriving (Show, Read, Eq)
 
 type Context = [(String, Binding)]
 
 addBinding :: Context -> String -> Binding -> Context
 addBinding ctx x bind = (x, bind) : ctx
+
+addName :: Context -> String -> Context
+addName ctx name = (name, NameBind) : ctx
 
 getTypeFromContext :: Context -> Integer -> Either String Type
 getTypeFromContext ctx i = case getBinding ctx i of
