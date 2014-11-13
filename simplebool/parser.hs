@@ -19,6 +19,16 @@ import Text.Parsec.String
  -
  -}
 
+-- |
+-- >>> parseTest (term []) "^x:Bool. x"
+-- TmAbs "x" TyBool (TmVar 0 1)
+--
+-- >>> parseTest (term []) "^x:Bool->Bool. if x true then x false else x true"
+-- TmAbs "x" (TyArr TyBool TyBool) (TmIf (TmApp (TmVar 0 1) TmTrue) (TmApp (TmVar 0 1) TmFalse) (TmApp (TmVar 0 1) TmTrue))
+--
+-- >>> parseTest (term []) "(^x:Bool. x) true"
+-- TmApp (TmAbs "x" TyBool (TmVar 0 1)) TmTrue
+--
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx
 
@@ -26,9 +36,8 @@ appTerm :: Context -> Parser Term
 appTerm ctx = aTerm ctx `chainL` ( TmApp <$ L.whiteSpace )
 
 aTerm :: Context -> Parser Term
-aTerm ctx = do
-    t <- L.parens $ term ctx
-    return t
+aTerm ctx =
+  try ( L.parens $ term ctx )
   <|> do
     L.reserved "true"
     return TmTrue
@@ -64,6 +73,18 @@ ifThenElse ctx = do
   t3 <- term ctx
   return $ TmIf t1 t2 t3
 
+-- |
+-- >>> parseTest (typeP []) "Bool"
+-- TyBool
+--
+-- >>> parseTest (typeP []) "Bool->Bool"
+-- TyArr TyBool TyBool
+--
+-- >>> parseTest (typeP []) "Bool->Bool->Bool"
+-- TyArr TyBool (TyArr TyBool TyBool)
+--
+-- >>> parseTest (typeP []) "(Bool->Bool)->Bool"
+-- TyArr (TyArr TyBool TyBool) TyBool
 typeP :: Context -> Parser Type
 typeP = arrowType
 
@@ -79,9 +100,7 @@ arrowType ctx =
 
 aType :: Context -> Parser Type
 aType ctx =
-  do
-    t <- L.parens $ typeP ctx
-    return t
+  try ( L.parens $ typeP ctx )
   <|>
   do
     L.reserved "Bool"
