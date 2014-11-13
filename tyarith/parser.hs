@@ -32,7 +32,8 @@ appTerm = aTerm
     return $ TmIszero t
 
 aTerm :: Parser Term
-aTerm = L.parens term
+aTerm =
+  L.parens term
   <|> do
     L.reserved "true"
     return TmTrue

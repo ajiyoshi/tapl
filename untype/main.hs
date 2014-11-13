@@ -1,4 +1,4 @@
-import Untyped
+import Core
 
 repl :: Monad m => (Term -> m b) -> [String] -> m ()
 repl puts = mapM_ ( puts . eval . read )

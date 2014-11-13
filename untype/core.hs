@@ -1,4 +1,4 @@
-module Untyped  where
+module Core  where
 
 data Term = TmVar Integer Integer | TmAbs String Term | TmApp Term Term deriving ( Show, Read, Eq )
 

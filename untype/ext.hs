@@ -10,8 +10,8 @@ ExtTerm(..)
 ) where
 
 import Control.Applicative
-import Untyped
-import UntypedParser
+import Core
+import Parser
 import Lambda
 
 data ExtTerm = Var Integer Integer | Lambda String ExtTerm | Apply ExtTerm ExtTerm

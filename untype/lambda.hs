@@ -9,8 +9,8 @@ buildIn
 ) where
 
 import Control.Applicative
-import Untyped
-import UntypedParser
+import Core
+import Parser
 
 buildIn :: [(String, String)]
 buildIn = [

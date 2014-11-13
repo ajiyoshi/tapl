@@ -1,4 +1,4 @@
-module UntypedParser (
+module Parser (
 Context
 , term
 , pickfreshname
@@ -11,7 +11,9 @@ Context
 , parseStrIn
 ) where
 
-import Untyped
+import Core
+import qualified Lex as L
+
 import Data.List
 import Control.Applicative hiding ((<|>))
 import Text.Parsec
@@ -44,28 +46,21 @@ appTerm :: Context -> Parser Term
 appTerm ctx = atomicTerm ctx `chainL` ( TmApp <$ spaces )
 
 atomicTerm :: Context -> Parser Term
-atomicTerm ctx = do
-  char '('
-  t <- term ctx
-  char ')'
-  return t
-  <|> identifier ctx
+atomicTerm ctx = try ( L.parens $ term ctx ) <|> identifier ctx
 
 identifier :: Context -> Parser Term
 identifier ctx = do
-  name <- many1 letter
+  name <- L.identifier
   case name2index ctx name of
     Just index -> return $ TmVar index (fromIntegral $ length ctx)
     Nothing -> parserFail $ "unknown variable [" ++ name ++ "]"
 
+
 lambda :: Context -> Parser Term
 lambda ctx = do
-  char '^'
-  spaces
+  L.reservedOp "^" <|> L.reserved "lambda"
   name <- many1 letter
-  spaces
-  char '.'
-  spaces
+  L.dot
   t <- term (name:ctx)
   return $ TmAbs name t
 
