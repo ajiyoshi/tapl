@@ -65,7 +65,7 @@ ifThenElse ctx = do
   return $ TmIf t1 t2 t3
 
 typeP :: Context -> Parser Type
-typeP ctx = arrowType ctx
+typeP = arrowType
 
 arrowType :: Context -> Parser Type
 arrowType ctx = 
