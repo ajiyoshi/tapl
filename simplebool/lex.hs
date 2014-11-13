@@ -30,10 +30,10 @@ dot :: Parser String
 dot = P.dot lexer
 
 runLex :: Show a => Parser a -> String -> IO()
-runLex p input = parseTest ( do { 
-                                whiteSpace
-                                ; x <- p
-                                ; eof
-                                ; return x
-                                }) input
+runLex p = parseTest ( do { 
+                          whiteSpace
+                          ; x <- p
+                          ; eof
+                          ; return x
+                          }) 
 

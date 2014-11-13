@@ -29,6 +29,9 @@ import Text.Parsec.String
 -- >>> parseTest (term []) "(^x:Bool. x) true"
 -- TmApp (TmAbs "x" TyBool (TmVar 0 1)) TmTrue
 --
+-- >>> parseTest (term []) "if if true then true else true then false else false"
+-- TmIf (TmIf TmTrue TmTrue TmTrue) TmFalse TmFalse
+--
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx
 
