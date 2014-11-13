@@ -59,7 +59,7 @@ identifier ctx = do
 lambda :: Context -> Parser Term
 lambda ctx = do
   L.reservedOp "^" <|> L.reserved "lambda"
-  name <- many1 letter
+  name <- L.identifier
   L.dot
   t <- term (name:ctx)
   return $ TmAbs name t
