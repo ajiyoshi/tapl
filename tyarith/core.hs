@@ -31,11 +31,13 @@ eval1 t = case t of
   TmSucc t1 -> TmSucc <$> eval1 t1
 
   TmPred (TmNat 0) -> return TmZero
+  TmPred (TmNat n) -> return $ TmNat (n-1)
   TmPred TmZero -> return TmZero
   TmPred (TmSucc t1) -> return t1
   TmPred t1 -> TmPred <$> eval1 t1
 
   TmIszero (TmNat 0) -> return TmTrue
+  TmIszero (TmNat _) -> return TmFalse
   TmIszero TmZero -> return TmTrue
   TmIszero (TmSucc n) | isNumericalVal n -> return TmFalse
   TmIszero t1 -> TmIszero <$> eval1 t1
