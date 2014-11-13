@@ -46,10 +46,10 @@ name2index ctx name = fromIntegral <$> elemIndex (name,NameBind) ctx
 
 lambda :: Context -> Parser Term
 lambda ctx = do
-  L.reservedOp "^"
+  L.reservedOp "^" <|> L.reserved "lambda"
   name <- L.identifier
   L.reservedOp ":"
-  ty <- typeParser ctx
+  ty <- typeP ctx
   L.dot
   t <- term (addName ctx name)
   return $ TmAbs name ty t
@@ -64,15 +64,15 @@ ifThenElse ctx = do
   t3 <- term ctx
   return $ TmIf t1 t2 t3
 
-typeParser :: Context -> Parser Type
-typeParser ctx = arrowType ctx
+typeP :: Context -> Parser Type
+typeP ctx = arrowType ctx
 
 arrowType :: Context -> Parser Type
 arrowType ctx = 
   try ( do
     t1 <- aType ctx
     L.reservedOp "->"
-    t2 <- typeParser ctx
+    t2 <- typeP ctx
     return $ TyArr t1 t2 )
   <|>
   aType ctx
@@ -80,7 +80,7 @@ arrowType ctx =
 aType :: Context -> Parser Type
 aType ctx =
   do
-    t <- L.parens $ typeParser ctx
+    t <- L.parens $ typeP ctx
     return t
   <|>
   do
@@ -94,3 +94,9 @@ chain :: Parser (a -> a -> a) -> Parser a -> a -> Parser a
 chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
   where
     lefty f r = l `f` r
+
+runTypeof :: String -> Either String Type
+runTypeof str = case parse (term []) "PARSE ERROR" str of
+  Left p  -> fail $ show p
+  Right s -> typeof [] s
+

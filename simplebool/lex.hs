@@ -7,7 +7,7 @@ import Text.Parsec.String
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser ( haskellDef {
-       P.reservedNames = ["if", "then", "else", "true", "false", "Bool"]
+       P.reservedNames = ["if", "then", "else", "true", "false", "Bool", "lambda"]
        , P.reservedOpNames = ["^", "->", ":"]
        } )
 
