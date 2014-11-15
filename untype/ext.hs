@@ -118,7 +118,7 @@ repExt s = putsMaybe $ showExtTerm <$> calcExt s
 -- Just (B False)
 -- >>> realbool <$> calcExt "and fls fls"
 -- Just (B False)
--- >>> realbool <$> calcExt "and tru fls"
+-- >>> realbool <$> calcExt "and fls tru"
 -- Just (B False)
 -- >>> realbool <$> calcExt "and tru tru"
 -- Just (B True)

@@ -37,7 +37,8 @@ buildIn = [
   ,("subtract","^m. ^n. n prd m")
   ,("equal","^m. ^n. (and (iszro (n prd m)) (iszro (m prd n)))")
   ,("fix",  "^f. (^x. f (^y. x x y)) (^x. f (^y. x x y))")
-  ,("fact", "^f. ^n. test (iszro n) (^x. one) (^x. (times n (f (prd n)))) zero")
+  ,("fact", "^f. ^n. test (iszro n) (^x. one) (^x. (times n (f (prd n)))) tru")
+  ,("fact2", "^f. ^n. test (iszro n) one (times n (f (prd n)))")
   ]
 
 compiledBuildIn :: [(String, Term)]
