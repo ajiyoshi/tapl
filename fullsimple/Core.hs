@@ -1,8 +1,14 @@
 module Core where
 
 import Control.Applicative 
+import Control.Arrow  -- &&&
 
-data Type = TyArr Type Type | TyBool | TyNat | TyUnit | TyPair Type Type deriving (Show, Read, Eq)
+data Type = TyArr Type Type
+  | TyBool
+  | TyNat
+  | TyUnit
+  | TyTuple [Type]
+  | TyRecord [(String, Type)] deriving (Show, Read, Eq)
 
 data Binding = NameBind | VarBind Type deriving (Show, Read, Eq)
 
@@ -14,9 +20,10 @@ data Term = TmVar Integer Integer
   | TmNat Integer
   | TmUnit
   | TmLet String Term Term
-  | TmPair Term Term
-  | TmProj Bool Term
-  | TmCdr Term
+  | TmTuple [Term]
+  | TmProj Integer Term
+  | TmRecord [(String, Term)]
+  | TmProjRec String Term
   | TmIf Term Term Term deriving (Show, Read, Eq)
 
 type Context = [(String, Binding)]
@@ -41,25 +48,41 @@ isval ctx t = case t of
   TmFalse -> True
   TmNat _ -> True
   TmAbs {} -> True
-  TmPair t1 t2 -> isval ctx t1 && isval ctx t2
+  TmTuple ts -> all (isval ctx) ts
+  TmRecord ts -> all (isval ctx) $ map snd ts
   _ -> False
+
+mapFirst :: Applicative f => (a -> Bool) -> (a -> f a) -> [a] -> f [a]
+mapFirst _ _ [] = pure []
+mapFirst p f (x:xs) =
+  if p x
+  then (:) <$> pure x <*> mapFirst p f xs
+  else (:) <$> f x <*> pure xs
 
 eval1 :: Context -> Term -> Maybe Term
 eval1 ctx t = case t of
   TmApp (TmAbs _ _ t1) v2 | isval ctx v2 -> return ( termSubstTop v2 t1 )
   TmApp v1 t2 | isval ctx v1 -> TmApp v1 <$> eval1 ctx t2
   TmApp t1 t2 -> (`TmApp` t2) <$> eval1 ctx t1
+
   TmIf TmTrue  t2 _ -> return t2
   TmIf TmFalse _ t3 -> return t3
-  TmLet _ v1 t2 | isval ctx v1 -> return ( termSubstTop v1 t2 )
-  TmLet s v1 t2 -> (\x -> TmLet s x t2) <$> eval1 ctx v1
   TmIf t1 t2 t3 -> (\x -> TmIf x t2 t3) <$> eval1 ctx t1
 
-  TmProj True  (TmPair v1 v2) | isval ctx v1 && isval ctx v2 -> return v1
-  TmProj False (TmPair v1 v2) | isval ctx v1 && isval ctx v2 -> return v2
-  TmProj b (TmPair v1 t2) | isval ctx v1 -> TmProj b . TmPair v1 <$> eval1 ctx t2
-  TmProj b (TmPair t1 t2) -> (\x -> TmProj b (TmPair x t2)) <$> eval1 ctx t1
-  TmProj b t1 -> TmProj b <$> eval1 ctx t1
+  TmLet _ v1 t2 | isval ctx v1 -> return ( termSubstTop v1 t2 )
+  TmLet s v1 t2 -> (\x -> TmLet s x t2) <$> eval1 ctx v1
+
+  TmProj n t1@(TmTuple vs) | isval ctx t1 -> return $ (undefined:vs) !! fromIntegral n
+  TmProj n t1 -> TmProj n <$> eval1 ctx t1
+
+  TmTuple ts -> TmTuple <$> mapFirst (isval ctx) (eval1 ctx) ts
+
+  TmProjRec s r@(TmRecord vs) | isval ctx r -> lookup s vs
+  TmProjRec s t1 -> TmProjRec s <$> eval1 ctx t1
+
+  TmRecord ts -> TmRecord <$> mapFirst isval' eval1' ts where
+    isval' (_, v) = isval ctx v
+    eval1' (k, v) = (\v' -> (k, v')) <$> eval1 ctx v
 
   _ -> Nothing
 
@@ -80,6 +103,10 @@ tmmap onvar c0 t0 =
       TmNat n -> TmNat n
       TmIf t1 t2 t3 -> TmIf (walk c t1) (walk c t2) (walk c t3)
       TmLet x v1 t2 -> TmLet x (walk c v1) (walk (c+1) t2)
+      TmTuple ts -> TmTuple $ map (walk c) ts
+      TmProj n t1 -> TmProj n (walk c t1)
+      TmRecord ts -> TmRecord (map (fst &&& walk c . snd) ts)
+      TmProjRec s t1 -> TmProjRec s (walk c t1)
   in walk c0 t0
 
 termShiftAbove :: Integer -> Integer -> Term -> Term
@@ -126,15 +153,25 @@ typeof ctx t = case t of
   TmLet s v1 t2 -> do
     tyV1 <- typeof ctx v1
     typeof (addBinding ctx s (VarBind tyV1)) t2
-  TmPair v1 v2 -> do
-    tyV1 <- typeof ctx v1
-    tyV2 <- typeof ctx v2
-    return $ TyPair tyV1 tyV2
-  TmProj b t1 -> do
+  TmTuple vs -> TyTuple <$> hoge2 (typeof ctx) vs
+  TmProj n t1 -> do
     tyT1 <- typeof ctx t1
-    case (tyT1, b) of
-      (TyPair p1 _, True)  -> return p1
-      (TyPair _ p2, False) -> return p2
-      (_, _) -> fail "ペアではないものから中身を取ろうとした"
+    case tyT1 of
+      TyTuple ts  -> return $ (undefined:ts) !! fromIntegral n
+      _ -> fail "ペアではないものから中身を取ろうとした"
+  TmRecord ts -> TyRecord . zip keys <$> hoge2 (typeof ctx) vals where
+    keys = map fst ts
+    vals = map snd ts
+  TmProjRec s t1 -> do
+    tyT1 <- typeof ctx t1
+    case tyT1 of
+      TyRecord ts -> case lookup s ts of
+        Just ty -> return ty
+        Nothing -> fail $ "存在しないレコードキー:" ++ s
+      _ -> fail "レコードでないものから中身を取ろうとした"
+
+hoge2 :: (a -> Either b c) -> [a] -> Either b [c]
+hoge2 _ [] = return []
+hoge2 f (x:xs) = (:) <$> f x <*> hoge2 f xs
 
       

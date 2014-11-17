@@ -51,24 +51,24 @@ import Text.Parsec.String
 -- TmLet "x" TmTrue (TmVar 0 1)
 --
 -- >>> parseTest (term []) "{true, 1}"
--- TmPair TmTrue (TmNat 1)
+-- TmTuple [TmTrue,TmNat 1]
 --
 -- >>> parseTest (term []) "{true, 1}.1"
--- TmProj True (TmPair TmTrue (TmNat 1))
+-- TmProj 1 (TmTuple [TmTrue,TmNat 1])
 --
 -- >>> parseTest (term []) "{{true, false}, 1}.1.2"
--- TmProj False (TmProj True (TmPair (TmPair TmTrue TmFalse) (TmNat 1)))
+-- TmProj 2 (TmProj 1 (TmTuple [TmTuple [TmTrue,TmFalse],TmNat 1]))
 --
 -- >>> parseTest (term []) "(if true then {true, 1} else {false, 0}).1"
--- TmProj True (TmIf TmTrue (TmPair TmTrue (TmNat 1)) (TmPair TmFalse (TmNat 0)))
+-- TmProj 1 (TmIf TmTrue (TmTuple [TmTrue,TmNat 1]) (TmTuple [TmFalse,TmNat 0]))
 --
+-- >>> parseTest (term []) "{x=1, y=true}"
+-- TmRecord [("x",TmNat 1),("y",TmTrue)]
+--
+-- >>> parseTest (term []) "{x=1, y=true}.x"
+-- TmProjRec "x" (TmRecord [("x",TmNat 1),("y",TmTrue)])
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx <|> letTerm ctx
-
-pairTerm :: Context -> Parser Term
-pairTerm ctx = try ( L.braces tuple ) where
-  tuple :: Parser Term
-  tuple = TmPair <$> term ctx <*> (L.comma *> term ctx)
 
 letTerm :: Context -> Parser Term
 letTerm ctx = do
@@ -99,10 +99,38 @@ atomicTerm :: Context -> Parser Term
 atomicTerm ctx = lefty <$> atomic <*> projs where
     atomic =
       try ( L.parens $ term ctx )
-      <|> pairTerm ctx
+      <|> recTerm ctx
+      <|> tupleTerm ctx
       <|> identifier ctx
-    lefty = foldl (\t c -> TmProj (c=='1') t)
-    projs = Text.Parsec.many ( L.dot *> oneOf "12" )
+    lefty = foldl (\acc f -> f acc) 
+    projs = Text.Parsec.many projTerm
+
+projTerm :: Parser (Term -> Term)
+projTerm =
+  try (TmProj <$> (L.dot *> L.natural))
+  <|>
+  (TmProjRec <$> (L.dot *> L.identifier))
+
+tupleTerm :: Context -> Parser Term
+tupleTerm ctx = try ( L.braces tuple ) where
+  tuple :: Parser Term
+  tuple = do
+    t0 <- term ctx
+    ts <- Text.Parsec.many (L.comma *> term ctx)
+    return $ TmTuple (t0:ts)
+
+recTerm :: Context -> Parser Term
+recTerm ctx = try ( L.braces record ) where
+  record :: Parser Term
+  record = do
+    u <- unit
+    us <- Text.Parsec.many (L.comma *> unit)
+    return $ TmRecord (u:us)
+  unit = do
+    n <- L.identifier
+    L.reservedOp "="
+    t <- term ctx
+    return (n, t)
 
 aTerm :: Context -> Parser Term
 aTerm ctx =
@@ -205,13 +233,13 @@ chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
 -- *** Exception: 条件部が真理値でなかった
 --
 -- >>> runTypeof "{{true, false}, 1}"
--- Right (TyPair (TyPair TyBool TyBool) TyNat)
+-- Right (TyTuple [TyTuple [TyBool,TyBool],TyNat])
 --
 -- >>> runTypeof "{{true, false}, 1}.1"
--- Right (TyPair TyBool TyBool)
+-- Right (TyTuple [TyBool,TyBool])
 --
 -- >>> runTypeof "{{true, false}, ^x:Bool->Bool. x}"
--- Right (TyPair (TyPair TyBool TyBool) (TyArr (TyArr TyBool TyBool) (TyArr TyBool TyBool)))
+-- Right (TyTuple [TyTuple [TyBool,TyBool],TyArr (TyArr TyBool TyBool) (TyArr TyBool TyBool)])
 --
 runTypeof :: String -> Either String Type
 runTypeof str = case parse (term []) "PARSE ERROR" str of
