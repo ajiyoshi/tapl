@@ -75,12 +75,12 @@ eval1 ctx t = case t of
   TmProj n t1@(TmTuple vs) | isval ctx t1 -> return $ (undefined:vs) !! fromIntegral n
   TmProj n t1 -> TmProj n <$> eval1 ctx t1
 
-  TmTuple ts -> TmTuple <$> mapFirst (isval ctx) (eval1 ctx) ts
+  TmTuple ts | not $ all (isval ctx) ts -> TmTuple <$> mapFirst (isval ctx) (eval1 ctx) ts
 
   TmProjRec s r@(TmRecord vs) | isval ctx r -> lookup s vs
   TmProjRec s t1 -> TmProjRec s <$> eval1 ctx t1
 
-  TmRecord ts -> TmRecord <$> mapFirst isval' eval1' ts where
+  TmRecord ts | not $ all isval' ts -> TmRecord <$> mapFirst isval' eval1' ts where
     isval' (_, v) = isval ctx v
     eval1' (k, v) = (\v' -> (k, v')) <$> eval1 ctx v
 

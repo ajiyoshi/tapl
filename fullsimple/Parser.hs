@@ -135,9 +135,9 @@ recTerm ctx = try ( L.braces record ) where
 aTerm :: Context -> Parser Term
 aTerm ctx =
   atomicTerm ctx
-  <|> TmTrue  <$ L.reserved "true"
-  <|> TmFalse <$ L.reserved "false"
-  <|> TmUnit  <$ L.reserved "unit"
+  <|> TmTrue  <$  L.reserved "true"
+  <|> TmFalse <$  L.reserved "false"
+  <|> TmUnit  <$  L.reserved "unit"
   <|> TmNat   <$> L.natural
 
 identifier :: Context -> Parser Term
@@ -241,6 +241,11 @@ chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
 -- >>> runTypeof "{{true, false}, ^x:Bool->Bool. x}"
 -- Right (TyTuple [TyTuple [TyBool,TyBool],TyArr (TyArr TyBool TyBool) (TyArr TyBool TyBool)])
 --
+-- >>> runTypeof "{x=1, y=true}"
+-- Right (TyRecord [("x",TyNat),("y",TyBool)])
+--
+-- >>> runTypeof "{x=1, y=true}.x"
+-- Right TyNat
 runTypeof :: String -> Either String Type
 runTypeof str = case parse (term []) "PARSE ERROR" str of
   Left p  -> fail $ show p
@@ -271,5 +276,10 @@ runTypeof str = case parse (term []) "PARSE ERROR" str of
 -- >>> eval [] <$> readTerm [] "{3, if true then false else false}.2"
 -- Right TmFalse
 --
+-- >>> eval [] <$> readTerm []  "{x=1, y=true}"
+-- Right (TmRecord [("x",TmNat 1),("y",TmTrue)])
+--
+-- >>> eval [] <$> readTerm [] "{x=1, y=true}.x"
+-- Right (TmNat 1)
 readTerm :: Context -> String -> Either ParseError Term
 readTerm ctx = parse (term ctx) "ERR"
