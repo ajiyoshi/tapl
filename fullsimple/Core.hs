@@ -1,13 +1,14 @@
 module Core where
 
-import Control.Applicative 
-import Control.Arrow  -- &&&
+import Control.Applicative  ((<$>), (<*>), pure, Applicative)
+import Control.Arrow ((&&&))
 
 data Type = TyArr Type Type
   | TyBool
   | TyNat
   | TyUnit
   | TyTuple [Type]
+  | TyVariant [(String, Type)]
   | TyRecord [(String, Type)] deriving (Show, Read, Eq)
 
 data Binding = NameBind | VarBind Type deriving (Show, Read, Eq)
@@ -24,6 +25,8 @@ data Term = TmVar Integer Integer
   | TmProj Integer Term
   | TmRecord [(String, Term)]
   | TmProjRec String Term
+  | TmVariant String [(String, Type)]
+  | TmMatch Term [(String, String, Term)]
   | TmIf Term Term Term deriving (Show, Read, Eq)
 
 type Context = [(String, Binding)]
@@ -61,7 +64,7 @@ mapFirst p f (x:xs) =
 
 eval1 :: Context -> Term -> Maybe Term
 eval1 ctx t = case t of
-  TmApp (TmAbs _ _ t1) v2 | isval ctx v2 -> return ( termSubstTop v2 t1 )
+  TmApp (TmAbs _ _ t1) v2 | isval ctx v2 -> return $ termSubstTop v2 t1
   TmApp v1 t2 | isval ctx v1 -> TmApp v1 <$> eval1 ctx t2
   TmApp t1 t2 -> (`TmApp` t2) <$> eval1 ctx t1
 
@@ -125,6 +128,9 @@ termSubst j0 s0 =
 
 termSubstTop :: Term -> Term -> Term
 termSubstTop s t = termShift (-1) (termSubst 0 (termShift 1 s) t)
+
+eqType :: Either String Type -> Either String Type -> Either String Bool
+eqType tyT1 tyT2 = (==) <$> tyT1 <*> tyT2
 
 typeof :: Context -> Term -> Either String Type
 typeof ctx t = case t of

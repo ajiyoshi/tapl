@@ -1,9 +1,9 @@
 module Lex where
 
-import Text.Parsec
+import Text.Parsec ((<|>), letter, char, eof, parseTest)
 import qualified Text.Parsec.Token as P
-import Text.Parsec.Language 
-import Text.Parsec.String
+import Text.Parsec.Language (haskellDef)
+import Text.Parsec.String (Parser)
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser ( haskellDef {
@@ -39,6 +39,9 @@ dot = P.dot lexer
 
 comma :: Parser String
 comma = P.comma lexer
+
+commaSep :: Parser a -> Parser [a]
+commaSep = P.commaSep lexer
 
 colon :: Parser String
 colon = P.colon lexer

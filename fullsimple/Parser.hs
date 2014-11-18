@@ -3,10 +3,10 @@ module Parser where
 import Core
 import qualified Lex as L
 
-import Data.List
-import Control.Applicative hiding ((<|>))
-import Text.Parsec
-import Text.Parsec.String
+import Data.List (elemIndex, foldl')
+import Control.Applicative ((<$>), (<$), (<*>), (*>), pure )
+import Text.Parsec -- (ParseError, parse, (<|>), many, try, parserFail, parseTest)
+import Text.Parsec.String (Parser)
 
 {-
  - Term := AppTerm | LAMBDA LCID COLON Type DOT Term | IF Term THEN Term ELSE Term
@@ -67,6 +67,9 @@ import Text.Parsec.String
 --
 -- >>> parseTest (term []) "{x=1, y=true}.x"
 -- TmProjRec "x" (TmRecord [("x",TmNat 1),("y",TmTrue)])
+--
+-- >>> parseTest (term []) "{}"
+-- TmTuple []
 term :: Context -> Parser Term
 term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx <|> letTerm ctx
 
@@ -96,49 +99,36 @@ appTerm :: Context -> Parser Term
 appTerm ctx = aTerm ctx `chainL` ( TmApp <$ L.whiteSpace )
 
 atomicTerm :: Context -> Parser Term
-atomicTerm ctx = lefty <$> atomic <*> projs where
+atomicTerm ctx = foldl' (\acc f -> f acc) <$> atomic <*> projs where
     atomic =
       try ( L.parens $ term ctx )
-      <|> recTerm ctx
       <|> tupleTerm ctx
+      <|> recTerm ctx
       <|> identifier ctx
-    lefty = foldl (\acc f -> f acc) 
-    projs = Text.Parsec.many projTerm
+    projs = many projTerm
 
 projTerm :: Parser (Term -> Term)
-projTerm =
-  try (TmProj <$> (L.dot *> L.natural))
-  <|>
-  (TmProjRec <$> (L.dot *> L.identifier))
+projTerm = do
+  L.dot
+  ( TmProj <$> L.natural ) <|> ( TmProjRec <$> L.identifier )
 
 tupleTerm :: Context -> Parser Term
-tupleTerm ctx = try ( L.braces tuple ) where
-  tuple :: Parser Term
-  tuple = do
-    t0 <- term ctx
-    ts <- Text.Parsec.many (L.comma *> term ctx)
-    return $ TmTuple (t0:ts)
+tupleTerm ctx = try ( L.braces (TmTuple <$> L.commaSep (term ctx)) )
 
 recTerm :: Context -> Parser Term
-recTerm ctx = try ( L.braces record ) where
-  record :: Parser Term
-  record = do
-    u <- unit
-    us <- Text.Parsec.many (L.comma *> unit)
-    return $ TmRecord (u:us)
-  unit = do
-    n <- L.identifier
-    L.reservedOp "="
-    t <- term ctx
-    return (n, t)
+recTerm ctx = try ( L.braces (TmRecord <$> L.commaSep unit) ) where
+  unit :: Parser (String, Term)
+  unit = (\n t -> (n, t)) <$> L.identifier <*> (L.reservedOp "=" *> term ctx)
 
 aTerm :: Context -> Parser Term
-aTerm ctx =
-  atomicTerm ctx
-  <|> TmTrue  <$  L.reserved "true"
-  <|> TmFalse <$  L.reserved "false"
-  <|> TmUnit  <$  L.reserved "unit"
-  <|> TmNat   <$> L.natural
+aTerm ctx = atomicTerm ctx <|> literalTerm
+
+literalTerm :: Parser Term
+literalTerm = 
+  TmNat <$> L.natural
+  <|> TmTrue  <$ L.reserved "true"
+  <|> TmFalse <$ L.reserved "false"
+  <|> TmUnit  <$ L.reserved "unit"
 
 identifier :: Context -> Parser Term
 identifier ctx = do
@@ -178,8 +168,25 @@ ifThenElse ctx = TmIf
 -- >>> parseTest (typeP []) "(Bool->Bool)->Bool"
 -- TyArr (TyArr TyBool TyBool) TyBool
 --
+-- >>> parseTest (typeP []) "{Bool, Bool}"
+-- TyTuple [TyBool,TyBool]
+--
+-- >>> parseTest (typeP []) "{}"
+-- TyTuple []
+--
+-- >>> parseTest (typeP []) "{x=Bool, y=Bool->Bool}"
+-- TyRecord [("x",TyBool),("y",TyArr TyBool TyBool)]
+--
 typeP :: Context -> Parser Type
-typeP = arrowType
+typeP ctx = arrowType ctx <|> tupleType ctx <|> recType ctx
+
+tupleType :: Context -> Parser Type
+tupleType ctx = try ( L.braces (TyTuple <$> L.commaSep (typeP ctx)) )
+
+recType :: Context -> Parser Type
+recType ctx = try ( L.braces (TyRecord <$> L.commaSep unit) ) where
+  unit :: Parser (String, Type)
+  unit = (\n t -> (n, t)) <$> L.identifier <*> (L.reservedOp "=" *> typeP ctx)
 
 arrowType :: Context -> Parser Type
 arrowType ctx = do
@@ -246,6 +253,15 @@ chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
 --
 -- >>> runTypeof "{x=1, y=true}.x"
 -- Right TyNat
+--
+-- >>> runTypeof "((^x:{x=Nat, y=Nat}. {false, x}) {x=1, y=2})"
+-- Right (TyTuple [TyBool,TyRecord [("x",TyNat),("y",TyNat)]])
+--
+-- >>> runTypeof "((^x:{x=Nat, y=Nat}. {false, x}) {1, 2})"
+-- *** Exception: parameter type mismatch
+--
+-- >>> runTypeof "((^x:{x=Nat, y=Nat}. x.y) {x=1, y=2})"
+-- Right TyNat
 runTypeof :: String -> Either String Type
 runTypeof str = case parse (term []) "PARSE ERROR" str of
   Left p  -> fail $ show p
@@ -281,5 +297,21 @@ runTypeof str = case parse (term []) "PARSE ERROR" str of
 --
 -- >>> eval [] <$> readTerm [] "{x=1, y=true}.x"
 -- Right (TmNat 1)
+--
+-- >>> eval [] <$> readTerm [] "^x:{Bool, Bool}. {false, x}"
+-- Right (TmAbs "x" (TyTuple [TyBool,TyBool]) (TmTuple [TmFalse,TmVar 0 1]))
+--
+-- >>> eval [] <$> readTerm [] "((^x:{Bool, Bool}. {false, x}) {true, false})"
+-- Right (TmTuple [TmFalse,TmTuple [TmTrue,TmFalse]])
+--
+-- >>> eval [] <$> readTerm [] "^x:{x=Nat, y=Nat}. {false, x}"
+-- Right (TmAbs "x" (TyRecord [("x",TyNat),("y",TyNat)]) (TmTuple [TmFalse,TmVar 0 1]))
+--
+-- >>> eval [] <$> readTerm [] "((^x:{x=Nat, y=Nat}. {false, x}) {x=1, y=2})"
+-- Right (TmTuple [TmFalse,TmRecord [("x",TmNat 1),("y",TmNat 2)]])
+--
+-- >>> eval [] <$> readTerm [] "((^x:{x=Nat, y=Nat}. x.y) {x=1, y=2})"
+-- Right (TmNat 2)
+--
 readTerm :: Context -> String -> Either ParseError Term
 readTerm ctx = parse (term ctx) "ERR"
