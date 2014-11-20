@@ -7,22 +7,29 @@ import Control.Applicative ((<$>))
 
 exec :: Context -> [Command] -> IO()
 exec _ [] = return ()
-exec ctx (c:cs) = case c of
-  Eval t1 -> case typeof ctx t1 of
-    Left s -> do
-      print s
-    Right ty -> do
-      print $ show (eval ctx t1) ++ " : " ++ show ty
-      exec ctx cs
-  Bind n b0 ->
-    case checkBiding ctx b0 of
-      Left s -> do
-        print s
-      Right b1 ->
-        let b2 = evalBinding ctx b1 in
-        do
-          print $ n ++ " : " ++ show b2
-          exec (addBinding ctx n b2) cs
+exec ctx (cmd:cs) = 
+  let
+    (ctx', str) = run ctx cmd
+  in do
+    print str
+    exec ctx' cs
+
+run :: Context -> Command -> (Context, String)
+run ctx (Eval t1) = 
+    either
+      (\s -> (ctx, s))
+      (\t -> (ctx, show (eval ctx t1) ++ " : " ++ show t))
+      $ typeof ctx t1
+run ctx (Bind n b0) =
+    either
+      (\ s -> (ctx, s))
+      (\ b1 ->
+        let
+          b2 = evalBinding ctx b1
+          ret = n ++ " : " ++ show b2
+          ctx' = addBinding ctx n b2
+        in (ctx', ret) )
+      $ checkBiding ctx b0
 
 checkBiding :: Context -> Binding -> Either String Binding
 checkBiding ctx b = case b of

@@ -350,3 +350,24 @@ runTypeof str = case parse (term []) "PARSE ERROR" str of
 --
 readTerm :: Context -> String -> Either ParseError Term
 readTerm ctx = parse (term ctx) "ERR"
+
+appendShortName :: String -> String -> String
+appendShortName s s' = foldl' (flip (:)) s' $ reverse s
+
+showTypeS :: Context -> Type -> String -> String
+showTypeS _ t0 s = shows t0 s
+
+showTermS :: Context -> Term -> String -> String
+showTermS ctx t0 = case t0 of
+  TmAbs n ty t1 -> ('^':) . appendShortName n . (':':) . showTypeS ctx ty . ('.':) . showTermS (addName ctx n) t1
+  TmApp t1 t2 -> ('(':) . showTermS ctx t1 . (' ':) . showTermS ctx t2 . (')':)
+  TmIf t1 t2 t3 ->
+    appendShortName "if " . showTermS ctx t1
+    . appendShortName " then " . showTermS ctx t2
+    . appendShortName " else " . showTermS ctx t3
+  TmNat n -> shows n
+  TmTrue -> shows "true"
+  TmFalse -> shows "false"
+  t1 -> shows t1
+  
+
