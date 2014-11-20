@@ -1,12 +1,14 @@
 module Parser where
 
 import Core
+import Syntax
 import qualified Lex as L
 
-import Data.List (elemIndex, foldl')
-import Control.Applicative ((<$>), (<$), (<*>), (*>), pure )
+import Data.List (foldl')
+import Control.Applicative ((<$>), (<$), (<*>), (*>), (<*), pure )
 import Text.Parsec -- (ParseError, parse, (<|>), many, try, parserFail, parseTest)
 import Text.Parsec.String (Parser)
+--import Text.Parsec.Char (upper)
 
 {-
  - Term := AppTerm | LAMBDA LCID COLON Type DOT Term | IF Term THEN Term ELSE Term
@@ -18,6 +20,42 @@ import Text.Parsec.String (Parser)
  - AType := LPAREN Type RPAREN | BOOL
  -
  -}
+
+toplevel :: Context -> Parser ([Command], Context)
+toplevel ctx = 
+  ( eof *> return ([], ctx) )
+  <|>
+  do
+    (cmd, ctx') <- command ctx <* L.semi
+    (\(cmds, c) -> ((cmd:cmds), c)) <$> toplevel ctx' <|> pure ([cmd], ctx')
+
+command :: Context -> Parser (Command, Context)
+command ctx = do
+  try ( (\t -> (Eval t, ctx)) <$> term ctx )
+  <|>
+  (\(n, b) -> (Bind n b, addBinding ctx n b)) <$> binder ctx
+
+-- |
+-- >>> parseTest (binder []) "BB = Bool->Bool"
+-- ("BB",TyAbbBind (TyArr TyBool TyBool))
+--
+-- >>> parseTest (binder []) "a"
+-- ("a",TyVarBind)
+--
+-- >>> parseTest (binder []) "a = ^x:Bool. x"
+-- ("a",TmAbbBind (TmAbs "x" TyBool (TmVar 0 1)) Nothing)
+--
+-- >>> parseTest (binder []) "a = ^x:Bool. x :: Bool->Bool"
+-- ("a",TmAbbBind (TmAbs "x" TyBool (TmVar 0 1)) (Just (TyArr TyBool TyBool)))
+binder :: Context -> Parser (String, Binding)
+binder ctx =
+  try ( (\n x -> (n, TyAbbBind x)) <$> (upperId <* L.reservedOp "=") <*> typeP ctx )
+  <|> try ( (\n x y -> (n, TmAbbBind x (Just y))) <$> (L.identifier <* L.reservedOp "=") <*> term ctx <*> (L.reservedOp "::" *> typeP ctx) )
+  <|> try ( (\n x -> (n, TmAbbBind x Nothing)) <$> (L.identifier <* L.reservedOp "=") <*> term ctx )
+  <|> try ( (\n -> (n, TyVarBind)) <$> L.identifier )
+             
+upperId :: Parser String
+upperId = (:) <$> upper <*> L.identifier
 
 -- |
 -- >>> parseTest (term []) "^x:Bool. x"
@@ -87,21 +125,13 @@ seqTerm ctx =
     t1 <- term ctx
     (\t2 -> TmApp (TmAbs x' TyUnit t2) t1) <$> ( L.semi *> seqTerm ctx' ) <|> pure t1
 
-pickfreshname :: Context -> String -> (Context, String)
-pickfreshname ctx "_" = (("_", NameBind):ctx, "_")
-pickfreshname ctx name = choose names where
-  choose (n:ns) = case elemIndex n $ map fst ctx of
-    Just _ -> choose ns
-    Nothing -> ( (n, NameBind):ctx, n )
-  names = name : [ name ++ (show::Integer->String) i | i <- [0..] ]
-
 appTerm :: Context -> Parser Term
 appTerm ctx = aTerm ctx `chainL` ( TmApp <$ L.whiteSpace )
 
 atomicTerm :: Context -> Parser Term
 atomicTerm ctx = foldl' (\acc f -> f acc) <$> atomic <*> projs where
     atomic =
-      try ( L.parens $ term ctx )
+      try ( L.parens $ seqTerm ctx )
       <|> tupleTerm ctx
       <|> recTerm ctx
       <|> identifier ctx
@@ -136,9 +166,6 @@ identifier ctx = do
   case name2index ctx name of
     Just index -> return $ TmVar index (fromIntegral $ length ctx)
     Nothing -> parserFail $ "unknown variable [" ++ name ++ "]"
-
-name2index :: Context -> String -> Maybe Integer
-name2index ctx name = fromIntegral <$> elemIndex (name,NameBind) ctx
 
 lambda :: Context -> Parser Term
 lambda ctx =  do
@@ -199,6 +226,14 @@ aType ctx =
   <|> L.reserved "Bool" *> return TyBool
   <|> L.reserved "Nat"  *> return TyNat
   <|> L.reserved "Unit" *> return TyUnit
+  <|> varType ctx
+
+varType :: Context -> Parser Type
+varType ctx = do
+  name <- L.identifier
+  case name2index ctx name of
+    Just index -> return $ TyVar index (fromIntegral $ length ctx)
+    Nothing -> parserFail $ "unknown variable [" ++ name ++ "]"
 
 chainL :: Parser a -> Parser (a -> a -> a) -> Parser a
 chainL p op = p >>= op `chain` p

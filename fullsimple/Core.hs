@@ -1,49 +1,7 @@
 module Core where
 
+import Syntax
 import Control.Applicative  ((<$>), (<*>), pure, Applicative)
-import Control.Arrow ((&&&))
-
-data Type = TyArr Type Type
-  | TyBool
-  | TyNat
-  | TyUnit
-  | TyTuple [Type]
-  | TyVariant [(String, Type)]
-  | TyRecord [(String, Type)] deriving (Show, Read, Eq)
-
-data Binding = NameBind | VarBind Type deriving (Show, Read, Eq)
-
-data Term = TmVar Integer Integer
-  | TmAbs String Type Term
-  | TmApp Term Term
-  | TmTrue
-  | TmFalse
-  | TmNat Integer
-  | TmUnit
-  | TmLet String Term Term
-  | TmTuple [Term]
-  | TmProj Integer Term
-  | TmRecord [(String, Term)]
-  | TmProjRec String Term
-  | TmVariant String [(String, Type)]
-  | TmMatch Term [(String, String, Term)]
-  | TmIf Term Term Term deriving (Show, Read, Eq)
-
-type Context = [(String, Binding)]
-
-addBinding :: Context -> String -> Binding -> Context
-addBinding ctx x bind = (x, bind) : ctx
-
-addName :: Context -> String -> Context
-addName ctx name = (name, NameBind) : ctx
-
-getTypeFromContext :: Context -> Integer -> Either String Type
-getTypeFromContext ctx i = case getBinding ctx i of
-  VarBind tyT -> return tyT
-  _ -> fail $ "type error : (" ++ show ctx ++ ")"
-
-getBinding :: Context -> Integer -> Binding
-getBinding ctx i = let (_, bin) = ctx !! fromIntegral i in bin
 
 isval :: Context -> Term -> Bool
 isval ctx t = case t of
@@ -87,6 +45,10 @@ eval1 ctx t = case t of
     isval' (_, v) = isval ctx v
     eval1' (k, v) = (\v' -> (k, v')) <$> eval1 ctx v
 
+  TmVar n _ -> case getBinding ctx n of
+    (TmAbbBind t1 _) -> return t1
+    _ -> Nothing
+
   _ -> Nothing
 
 eval :: Context -> Term -> Term
@@ -94,57 +56,35 @@ eval ctx t = case eval1 ctx t of
   Just t1 -> eval ctx t1
   Nothing -> t
 
-tmmap :: (Integer -> Integer -> Integer -> Term) -> Integer -> Term -> Term
-tmmap onvar c0 t0 = 
-  let
-    walk c t = case t of
-      TmVar x n -> onvar c x n
-      TmAbs x tyT1 t2 -> TmAbs x tyT1 (walk (c+1) t2)
-      TmApp t1 t2 -> TmApp (walk c t1) (walk c t2)
-      TmTrue  -> TmTrue
-      TmFalse -> TmFalse
-      TmNat n -> TmNat n
-      TmIf t1 t2 t3 -> TmIf (walk c t1) (walk c t2) (walk c t3)
-      TmLet x v1 t2 -> TmLet x (walk c v1) (walk (c+1) t2)
-      TmTuple ts -> TmTuple $ map (walk c) ts
-      TmProj n t1 -> TmProj n (walk c t1)
-      TmRecord ts -> TmRecord (map (fst &&& walk c . snd) ts)
-      TmProjRec s t1 -> TmProjRec s (walk c t1)
-  in walk c0 t0
+getAbbType :: Context -> Integer -> Maybe Type
+getAbbType ctx i = case getBinding ctx i of
+  TyAbbBind t -> return t
+  _ -> Nothing
 
-termShiftAbove :: Integer -> Integer -> Term -> Term
-termShiftAbove d =
-  tmmap
-    (\c x n -> if x >= c then TmVar (x+d) (n+d) else TmVar x (n+d))
+evalType :: Context -> Type -> Type
+evalType ctx t = case t of
+  TyVar x _ -> case getAbbType ctx x of
+    Just t' -> t'
+    Nothing -> t
+  other -> other
 
-termShift :: Integer -> Term -> Term
-termShift d = termShiftAbove d 0
-
-termSubst :: Integer -> Term -> Term -> Term
-termSubst j0 s0 =
-  tmmap
-    (\j x n -> if x == j then termShift j s0 else TmVar x n)
-    j0
-
-termSubstTop :: Term -> Term -> Term
-termSubstTop s t = termShift (-1) (termSubst 0 (termShift 1 s) t)
-
-eqType :: Either String Type -> Either String Type -> Either String Bool
-eqType tyT1 tyT2 = (==) <$> tyT1 <*> tyT2
+eqType :: Context -> Type -> Type -> Bool
+eqType ctx t1 t2 =
+  (evalType ctx t1) == (evalType ctx t2)
 
 typeof :: Context -> Term -> Either String Type
 typeof ctx t = case t of
   TmVar i _ -> getTypeFromContext ctx i
   TmAbs x tyT1 t2 ->
     let ctx' = addBinding ctx x (VarBind tyT1)
-    in TyArr tyT1 <$> typeof ctx' t2
+    in TyArr tyT1 . typeShift (-1) <$> typeof ctx' t2
   TmApp t1 t2 -> do
       tyT1 <- typeof ctx t1
       tyT2 <- typeof ctx t2
-      case tyT1 of
-        TyArr tyT11 tyT12 | tyT2 == tyT11 -> return tyT12
+      case evalType ctx tyT1 of
+        TyArr tyT11 tyT12 | eqType ctx tyT2 tyT11 -> return tyT12
         TyArr _ _ -> fail "parameter type mismatch"
-        _ -> fail "arrow type expected"
+        x -> fail $ "arrow type expected. but was (" ++ show x ++ ") in " ++ show ctx
   TmTrue  -> return TyBool
   TmFalse -> return TyBool
   TmNat _ -> return TyNat
@@ -158,14 +98,14 @@ typeof ctx t = case t of
         (_, _, _) -> fail "条件部が真理値でなかった"
   TmLet s v1 t2 -> do
     tyV1 <- typeof ctx v1
-    typeof (addBinding ctx s (VarBind tyV1)) t2
-  TmTuple vs -> TyTuple <$> hoge2 (typeof ctx) vs
+    typeShift (-1) <$> typeof (addBinding ctx s (VarBind tyV1)) t2
+  TmTuple vs -> TyTuple <$> eitherAll (typeof ctx) vs
   TmProj n t1 -> do
     tyT1 <- typeof ctx t1
     case tyT1 of
       TyTuple ts  -> return $ (undefined:ts) !! fromIntegral n
       _ -> fail "ペアではないものから中身を取ろうとした"
-  TmRecord ts -> TyRecord . zip keys <$> hoge2 (typeof ctx) vals where
+  TmRecord ts -> TyRecord . zip keys <$> eitherAll (typeof ctx) vals where
     keys = map fst ts
     vals = map snd ts
   TmProjRec s t1 -> do
@@ -176,8 +116,7 @@ typeof ctx t = case t of
         Nothing -> fail $ "存在しないレコードキー:" ++ s
       _ -> fail "レコードでないものから中身を取ろうとした"
 
-hoge2 :: (a -> Either b c) -> [a] -> Either b [c]
-hoge2 _ [] = return []
-hoge2 f (x:xs) = (:) <$> f x <*> hoge2 f xs
+eitherAll :: (a -> Either b c) -> [a] -> Either b [c]
+eitherAll _ [] = return []
+eitherAll f (x:xs) = (:) <$> f x <*> eitherAll f xs
 
-      

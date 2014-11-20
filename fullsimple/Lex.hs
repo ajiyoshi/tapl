@@ -9,7 +9,7 @@ lexer :: P.TokenParser ()
 lexer = P.makeTokenParser ( haskellDef {
        P.reservedNames = ["if", "then", "else", "true", "false", "Bool", "lambda", "Nat", "unit", "Unit",
                          "let", "in"]
-       , P.reservedOpNames = ["^", "->", "_"]
+       , P.reservedOpNames = ["^", "->", "_", "::"]
        , P.identStart = letter <|> char '_'
        } )
 
