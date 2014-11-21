@@ -8,7 +8,7 @@ import Text.Parsec.String (Parser)
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser ( haskellDef {
        P.reservedNames = ["if", "then", "else", "true", "false", "Bool", "lambda", "Nat", "unit", "Unit",
-                         "let", "in"]
+                         "let", "in", "fix", "succ", "pred", "iszero"]
        , P.reservedOpNames = ["^", "->", "_", "::"]
        , P.identStart = letter <|> char '_'
        } )

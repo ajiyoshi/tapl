@@ -2,6 +2,7 @@ module Core where
 
 import Syntax
 import Control.Applicative  ((<$>), (<*>), pure, Applicative)
+import Data.Maybe (fromMaybe)
 
 isval :: Context -> Term -> Bool
 isval ctx t = case t of
@@ -45,9 +46,25 @@ eval1 ctx t = case t of
     isval' (_, v) = isval ctx v
     eval1' (k, v) = (\v' -> (k, v')) <$> eval1 ctx v
 
+  f@(TmFix (TmAbs _ _ tm)) -> return $ termSubstTop f tm
+  TmFix t1 -> TmFix <$> eval1 ctx t1
+
   TmVar n _ -> case getBinding ctx n of
     (TmAbbBind t1 _) -> return t1
     _ -> Nothing
+
+  TmSucc (TmPred t1) -> return t1
+  TmSucc (TmNat n) -> return $ TmNat (n+1)
+  TmSucc t1 -> TmSucc <$> eval1 ctx t1
+
+  TmPred (TmSucc t1) -> return t1
+  TmPred (TmNat 0) -> return $ TmNat 0
+  TmPred (TmNat n) -> return $ TmNat (n-1)
+  TmPred t1 -> TmPred <$> eval1 ctx t1
+
+  TmIszero (TmNat 0) -> return TmTrue
+  TmIszero t1 | isval ctx t1 -> return TmFalse
+  TmIszero t1 -> TmIszero <$> eval1 ctx t1
 
   _ -> Nothing
 
@@ -63,14 +80,12 @@ getAbbType ctx i = case getBinding ctx i of
 
 evalType :: Context -> Type -> Type
 evalType ctx t = case t of
-  TyVar x _ -> case getAbbType ctx x of
-    Just t' -> t'
-    Nothing -> t
+  TyVar x _ -> fromMaybe t (getAbbType ctx x)
   other -> other
 
 eqType :: Context -> Type -> Type -> Bool
 eqType ctx t1 t2 =
-  (evalType ctx t1) == (evalType ctx t2)
+  evalType ctx t1 == evalType ctx t2
 
 typeof :: Context -> Term -> Either String Type
 typeof ctx t = case t of
@@ -115,6 +130,22 @@ typeof ctx t = case t of
         Just ty -> return ty
         Nothing -> fail $ "存在しないレコードキー:" ++ s
       _ -> fail "レコードでないものから中身を取ろうとした"
+
+  TmFix t1 -> case typeof ctx t1 of
+    Right ( TyArr ty1 ty2 ) | ty1 == ty2 -> return ty1
+    _ -> fail "fix"
+
+  TmSucc t1 -> case typeof ctx t1 of
+    Right TyNat -> return TyNat
+    _ -> fail "succ needs nat val"
+  TmPred t1 -> case typeof ctx t1 of
+    Right TyNat -> return TyNat
+    _ -> fail "pred needs nat val"
+  TmIszero t1 -> case typeof ctx t1 of
+    Right TyNat -> return TyBool
+    _ -> fail "iszero needs nat val"
+    
+
 
 eitherAll :: (a -> Either b c) -> [a] -> Either b [c]
 eitherAll _ [] = return []

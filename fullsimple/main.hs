@@ -2,8 +2,9 @@ import Parser
 import Syntax
 import Core
 
+import Data.List (foldl')
 import Text.Parsec.String (parseFromFile)
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 
 exec :: Context -> [Command] -> IO()
 exec _ [] = return ()
@@ -11,8 +12,34 @@ exec ctx (cmd:cs) =
   let
     (ctx', str) = run ctx cmd
   in do
-    print str
+    putStrLn str
     exec ctx' cs
+
+loadAndRun :: Maybe Context -> String -> Maybe Term
+loadAndRun c str = do
+  ctx <- c
+  case readTerm ctx str of
+    Left _ -> Nothing
+    Right t -> Just $ eval ctx t
+
+loadAndRun2 :: String -> String -> IO (Maybe Term)
+loadAndRun2 file str = loadAndRun <$> load file <*> return str
+
+evalN :: Maybe Context -> Term -> Integer -> Maybe Term
+evalN c t 0 = return t
+evalN c t n = do
+  ctx <- c
+  do
+    t' <- eval1 ctx t
+    evalN c t' (n-1)
+
+load :: String -> IO ( Maybe Context )
+load file = do
+  hoge <- parseFromFile (toplevel []) file
+  return $ case hoge of
+    Left x -> Nothing
+    Right (cmds, _) -> Just $ foldl' f [] cmds where
+      f ctx cmd = let (ctx', _) = run ctx cmd in ctx'
 
 run :: Context -> Command -> (Context, String)
 run ctx (Eval t1) = 

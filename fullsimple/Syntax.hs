@@ -12,6 +12,7 @@ data Type =
   | TyVar Integer Integer
   | TyTuple [Type]
   | TyVariant [(String, Type)]
+  | TyFix Type
   | TyRecord [(String, Type)] deriving (Show, Read, Eq)
 
 data Binding =
@@ -36,6 +37,10 @@ data Term = TmVar Integer Integer
   | TmProjRec String Term
   | TmVariant String [(String, Type)]
   | TmMatch Term [(String, String, Term)]
+  | TmFix Term
+  | TmSucc Term
+  | TmPred Term
+  | TmIszero Term
   | TmIf Term Term Term deriving (Show, Read, Eq)
 
 data Command = Eval Term | Bind String Binding deriving (Show, Read)
@@ -57,7 +62,7 @@ pickfreshname ctx name = choose names where
   names = name : [ name ++ (show::Integer->String) i | i <- [0..] ]
 
 name2index :: Context -> String -> Maybe Integer
-name2index ctx name = fromIntegral <$> (elemIndex name $ map fst ctx)
+name2index ctx name = fromIntegral <$> elemIndex name (map fst ctx)
 
 tymap :: (Integer -> Integer -> Integer -> Type) -> Integer -> Type -> Type
 tymap onvar c0 t0 =
@@ -90,6 +95,10 @@ tmmap onvar ontype c0 t0 =
       TmProj n t1 -> TmProj n (walk c t1)
       TmRecord ts -> TmRecord (map (fst &&& walk c . snd) ts)
       TmProjRec s t1 -> TmProjRec s (walk c t1)
+      TmFix t1 -> TmFix (walk c t1)
+      TmSucc t1 -> TmSucc (walk c t1)
+      TmPred t1 -> TmPred (walk c t1)
+      TmIszero t1 -> TmIszero (walk c t1)
   in walk c0 t0
 
 termShiftAbove :: Integer -> Integer -> Term -> Term
@@ -113,8 +122,8 @@ bindingShift :: Integer -> Binding -> Binding
 bindingShift d b = case b of
   NameBind -> NameBind
   VarBind t -> VarBind (typeShift d t)
-  TmAbbBind tm (Just t) -> TmAbbBind tm (Just (typeShift d t))
-  TmAbbBind tm Nothing -> TmAbbBind tm Nothing
+  TmAbbBind tm (Just t) -> TmAbbBind (termShift d tm) (Just (typeShift d t))
+  TmAbbBind tm Nothing -> TmAbbBind (termShift d tm) Nothing
   TyAbbBind t -> TyAbbBind (typeShift d t)
   TyVarBind -> TyVarBind
 

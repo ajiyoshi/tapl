@@ -6,6 +6,7 @@ import qualified Lex as L
 
 import Data.List (foldl')
 import Control.Applicative ((<$>), (<$), (<*>), (*>), (<*), pure )
+import Control.Arrow (first)
 import Text.Parsec -- (ParseError, parse, (<|>), many, try, parserFail, parseTest)
 import Text.Parsec.String (Parser)
 --import Text.Parsec.Char (upper)
@@ -27,10 +28,10 @@ toplevel ctx =
   <|>
   do
     (cmd, ctx') <- command ctx <* L.semi
-    (\(cmds, c) -> ((cmd:cmds), c)) <$> toplevel ctx' <|> pure ([cmd], ctx')
+    first ((:) cmd) <$> toplevel ctx' <|> pure ([cmd], ctx')
 
 command :: Context -> Parser (Command, Context)
-command ctx = do
+command ctx =
   try ( (\t -> (Eval t, ctx)) <$> term ctx )
   <|>
   (\(n, b) -> (Bind n b, addBinding ctx n b)) <$> binder ctx
@@ -47,6 +48,7 @@ command ctx = do
 --
 -- >>> parseTest (binder []) "a = ^x:Bool. x :: Bool->Bool"
 -- ("a",TmAbbBind (TmAbs "x" TyBool (TmVar 0 1)) (Just (TyArr TyBool TyBool)))
+--
 binder :: Context -> Parser (String, Binding)
 binder ctx =
   try ( (\n x -> (n, TyAbbBind x)) <$> (upperId <* L.reservedOp "=") <*> typeP ctx )
@@ -108,8 +110,18 @@ upperId = (:) <$> upper <*> L.identifier
 --
 -- >>> parseTest (term []) "{}"
 -- TmTuple []
+--
+-- >>> parseTest (term []) "iszero(pred (succ 1))"
+-- TmIszero (TmPred (TmSucc (TmNat 1)))
 term :: Context -> Parser Term
-term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx <|> letTerm ctx
+term ctx = appTerm ctx <|> lambda ctx <|> ifThenElse ctx <|> letTerm ctx <|> applyTerm ctx
+
+applyTerm :: Context -> Parser Term
+applyTerm ctx = 
+  TmSucc <$> (L.reserved "succ" *> term ctx)
+  <|> TmPred <$> (L.reserved "pred" *> term ctx)
+  <|> TmIszero <$> (L.reserved "iszero" *> term ctx)
+  <|> TmFix <$> (L.reserved "fix" *> term ctx)
 
 letTerm :: Context -> Parser Term
 letTerm ctx = do
@@ -297,6 +309,15 @@ chain op p l = ((lefty <$> op <*> p) >>= chain op p) <|> pure l
 --
 -- >>> runTypeof "((^x:{x=Nat, y=Nat}. x.y) {x=1, y=2})"
 -- Right TyNat
+--
+-- >>> runTypeof "iszero(pred (succ 1))"
+-- Right TyBool
+--
+-- >>> runTypeof "pred false"
+-- *** Exception: pred needs nat val
+--
+-- >>> runTypeof "succ (if iszero 0 then pred 10 else succ 3)"
+-- Right TyNat
 runTypeof :: String -> Either String Type
 runTypeof str = case parse (term []) "PARSE ERROR" str of
   Left p  -> fail $ show p
@@ -348,6 +369,10 @@ runTypeof str = case parse (term []) "PARSE ERROR" str of
 -- >>> eval [] <$> readTerm [] "((^x:{x=Nat, y=Nat}. x.y) {x=1, y=2})"
 -- Right (TmNat 2)
 --
+-- >>> eval [] <$> readTerm [] "succ (if iszero 0 then pred 10 else succ 3)"
+-- Right (TmNat 10)
+--
+--
 readTerm :: Context -> String -> Either ParseError Term
 readTerm ctx = parse (term ctx) "ERR"
 
@@ -355,7 +380,7 @@ appendShortName :: String -> String -> String
 appendShortName s s' = foldl' (flip (:)) s' $ reverse s
 
 showTypeS :: Context -> Type -> String -> String
-showTypeS _ t0 s = shows t0 s
+showTypeS _ = shows
 
 showTermS :: Context -> Term -> String -> String
 showTermS ctx t0 = case t0 of
